@@ -67,22 +67,22 @@ services:
       retries: 3
 
 # Kafka Connect with Debezium to CDC from PostgreSQL (CDC source)
-  kafka-connect:
+  debezium-kafka-connect:
     image: debezium/connect:2.6
-    hostname: kafka-connect
-    container_name: kafka-connect
+    hostname: debezium
+    container_name: debezium-kafka-connect
     ports:
       - "8083:8083"
     environment:
       BOOTSTRAP_SERVERS: kafka:29092
-      GROUP_ID: kafka-connect-cluster
+      GROUP_ID: debezium-cluster
       CONFIG_STORAGE_TOPIC: connect-configs
       OFFSET_STORAGE_TOPIC: connect-offsets
       STATUS_STORAGE_TOPIC: connect-status
       CONFIG_STORAGE_REPLICATION_FACTOR: 1
       OFFSET_STORAGE_REPLICATION_FACTOR: 1
       STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_ADVERTISED_HOST_NAME: debezium
       # Increase connector timeouts for stability
       CONNECT_TASK_SHUTDOWN_GRACEFUL_TIMEOUT_MS: 30000
       CONNECT_OFFSET_FLUSH_INTERVAL_MS: 60000
@@ -109,10 +109,10 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: connect
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://debezium:8083
     depends_on:
       - kafka
-      - kafka-connect
+      - debezium-kafka-connect
   
   # Cassandra for CDC sink
   cassandra:
