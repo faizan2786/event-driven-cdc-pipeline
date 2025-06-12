@@ -15,6 +15,30 @@ var myUserIDs []string
 
 //var myOrderIDs []string
 
+func randomString(n int) string {
+	letters := []rune("abcdefghijklmnopqrstuvwxyz")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
+func randomName() string {
+	firstLen := rand.Intn(5) + 3 // 3-7 chars
+	lastLen := rand.Intn(5) + 3  // 3-7 chars
+	firstName := randomString(firstLen)
+	lastName := randomString(lastLen)
+	return firstName + " " + lastName
+}
+
+func randomDOB() model.Date {
+	year := rand.Intn(2015-1970+1) + 1970 // 1970 to 2015
+	month := time.Month(rand.Intn(12) + 1)
+	day := rand.Intn(28) + 1 // To avoid invalid dates
+	return model.Date(time.Date(year, month, day, 0, 0, 0, 0, time.UTC))
+}
+
 func generateUserEvent(eventType model.EventType, userId string) model.UserEvent {
 
 	var event model.UserEvent
@@ -22,12 +46,12 @@ func generateUserEvent(eventType model.EventType, userId string) model.UserEvent
 
 	switch eventType {
 	case model.CREATE:
-		dob := model.Date(time.Date(2001, 11, 10, 0, 0, 0, 0, time.UTC))
-
+		dob := randomDOB()
+		name := randomName()
 		event = model.UserEvent{
 			Type:      eventType,
 			UserId:    model.UUID(userId),
-			Name:      "Faizan Patel",
+			Name:      name,
 			DOB:       &dob,
 			CreatedAt: &currentTime,
 		}
@@ -35,7 +59,7 @@ func generateUserEvent(eventType model.EventType, userId string) model.UserEvent
 		event = model.UserEvent{
 			Type:       eventType,
 			UserId:     model.UUID(userId),
-			Name:       "Faizan Patel2",
+			Name:       randomName(), // Optionally randomize name on update
 			ModifiedAt: &currentTime,
 		}
 	case model.DELETE:
