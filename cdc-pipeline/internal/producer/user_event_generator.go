@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// define set for storing generated uuids (useful for UPDATE and DELETE events)
+// define a list for storing generated uuids (useful for UPDATE and DELETE events)
 
 var myUserIDs []string
 

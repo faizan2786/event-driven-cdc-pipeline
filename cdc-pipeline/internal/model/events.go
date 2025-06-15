@@ -52,6 +52,8 @@ type OrderEvent struct {
 	Type       EventType   `json:"event_type"`
 	OrderId    UUID        `json:"order_id"`
 	Status     OrderStatus `json:"order_status"`
+	UserId     UUID        `json:"user_id,omitempty"`
+	Quantity   int         `json:"quantity,omitempty"`
 	OrderTotal float64     `json:"order_total,omitempty"`
 	PlacedAt   *DateTime   `json:"placed_at,omitempty"`
 	ModifiedAt *DateTime   `json:"modified_at,omitempty"`
