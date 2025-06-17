@@ -55,5 +55,4 @@ func consumeUserEvents() {
 		// commit the offset
 		reader.CommitMessages(ctx, msg)
 	}
-
 }

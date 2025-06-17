@@ -24,11 +24,10 @@ func main() {
 func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	writer := &kafka.Writer{
-		Addr:                   kafka.TCP(config.KAFKA_BROKER),
-		Topic:                  config.USERS_TOPIC,
-		Balancer:               &kafka.Hash{}, // partition by the Key in the message
-		BatchSize:              batchSize,
-		AllowAutoTopicCreation: true,
+		Addr:      kafka.TCP(config.KAFKA_BROKER),
+		Topic:     config.USERS_TOPIC,
+		Balancer:  &kafka.Hash{}, // partition by the Key in the message
+		BatchSize: batchSize,
 	}
 	defer writer.Close()
 
