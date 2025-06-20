@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/faizan2786/system-design/cdc-pipeline/internal/config"
+	"github.com/faizan2786/system-design/cdc-pipeline/internal/consumer"
+	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -44,6 +47,9 @@ func consumeUserEvents() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIME_OUT)*time.Millisecond)
 	defer cancel()
 
+	db := consumer.ConnectToDB()
+	defer db.Close()
+
 	for {
 		msg, err := reader.FetchMessage(ctx)
 		if err != nil {
@@ -51,7 +57,20 @@ func consumeUserEvents() {
 			break
 		}
 		fmt.Printf("Partition: %v, Offset: %v\nKey: %s, Message: %s\n", msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
+		fmt.Println("Sinking event to the DB...")
 
+		// unmarshal event into user object
+		var u model.UserEvent
+		err = json.Unmarshal(msg.Value, &u)
+		if err != nil {
+			fmt.Printf("Error while unmarshaling User event: %v\n", err)
+			break
+		}
+
+		res := consumer.AddUserEventToDB(db, u)
+		if !res {
+			break
+		}
 		// commit the offset
 		reader.CommitMessages(ctx, msg)
 	}

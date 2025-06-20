@@ -16,6 +16,21 @@ func (dt Date) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + t.Format("2006-01-02") + `"`), nil
 }
 
+func (dt *Date) UnmarshalJSON(data []byte) error {
+	// Remove quotes
+	str := string(data)
+	if len(str) < 2 {
+		return nil
+	}
+	str = str[1 : len(str)-1]
+	parsed, err := time.Parse("2006-01-02", str)
+	if err != nil {
+		return err
+	}
+	*dt = Date(parsed)
+	return nil
+}
+
 // enums...
 
 type EventType string

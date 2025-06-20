@@ -13,7 +13,7 @@ import (
 )
 
 const USER_BATCH_SIZE int = 7
-const ORDER_BATCH_SIZE int = 20
+const ORDER_BATCH_SIZE int = 10
 
 func main() {
 	userIds := produceUserEvents(USER_BATCH_SIZE, 1)

@@ -8,7 +8,8 @@ import (
 	"github.com/faizan2786/system-design/cdc-pipeline/internal/producer"
 )
 
-func test_events() {
+// change to main to run the program in the file
+func main_test() {
 	const NUM_EVENTS int = 7
 	userEvents := producer.GenerateRandomUserEvents(NUM_EVENTS)
 
