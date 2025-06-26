@@ -3,30 +3,29 @@ package consumer
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/faizan2786/system-design/cdc-pipeline/internal/config"
 	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func ConnectToDB() *sql.DB {
+func ConnectToDB() (*sql.DB, error) {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s/%s", config.PGUser, config.PGPassword, config.PGAddr, config.PGDBName)
 
 	var db *sql.DB
 	var err error
 	db, err = sql.Open("pgx", connStr)
 	if err != nil {
-		log.Fatalf("Failed to open database connection: %v", err)
+		return db, err
 	}
 
 	err = db.Ping()
 	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
+		return db, err
 	}
 	fmt.Printf("Successfully connected to PostgreSQL on %s\n", config.PGAddr)
 
-	return db
+	return db, nil
 }
 
 // AddUserEventsToDB inserts user event data into the database.

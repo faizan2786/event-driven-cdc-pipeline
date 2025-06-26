@@ -47,7 +47,11 @@ func consumeUserEvents() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIME_OUT)*time.Millisecond)
 	defer cancel()
 
-	db := consumer.ConnectToDB()
+	db, err := consumer.ConnectToDB()
+	if err != nil {
+		msg := fmt.Sprintf("Failed to Connect to the DB:\n%v\n", err)
+		panic(msg)
+	}
 	defer db.Close()
 
 	for {
