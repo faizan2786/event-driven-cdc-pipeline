@@ -13,12 +13,12 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const TIME_OUT int = 3000 // in mill secs
+const TIME_OUT int = 5000 // in mill secs
 
 func main() {
-
-	// consume user events in parallel
 	var wg sync.WaitGroup
+
+	// consume user events in parallel (as a consumer group)
 	for i := 0; i < config.USERS_NUM_PARTITIONS; i++ {
 		wg.Add(1)
 		go func() {
@@ -27,17 +27,25 @@ func main() {
 		}()
 	}
 
+	// consume order events in parallel
+	for i := 0; i < config.ORDERS_NUM_PARTITIONS; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			consumeOrderEvents()
+		}()
+	}
+
 	wg.Wait() // Wait for all goroutines to finish
 }
 
-// consume user events from given partition id and display on the console
-// block until new messages or time out
+// consume user events - blocks until new message arrives or time out reached
 func consumeUserEvents() {
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{config.KAFKA_BROKER},
 		Topic:   config.USERS_TOPIC,
-		GroupID: "go-consumer-group",
+		GroupID: "go-consumer-group-users",
 	})
 	defer reader.Close()
 
@@ -61,9 +69,8 @@ func consumeUserEvents() {
 			break
 		}
 		fmt.Printf("Partition: %v, Offset: %v\nKey: %s, Message: %s\n", msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
-		fmt.Println("Sinking event to the DB...")
 
-		// unmarshal event into user object
+		// de-serialise event and put it into DB...
 		var u model.UserEvent
 		err = json.Unmarshal(msg.Value, &u)
 		if err != nil {
@@ -71,11 +78,52 @@ func consumeUserEvents() {
 			break
 		}
 
-		res := consumer.AddUserEventToDB(db, u)
-		if !res {
+		success := consumer.AddUserEventToDB(db, u)
+		if !success {
 			break
 		}
 		// commit the offset
 		reader.CommitMessages(ctx, msg)
+	}
+}
+
+// consume user events - blocks until new message arrives or time out reached
+func consumeOrderEvents() {
+
+	db, err := consumer.ConnectToDB()
+	if err != nil {
+		msg := fmt.Sprintf("Failed to connect to the DB:\n%v\n", err)
+		panic(msg)
+	}
+	defer db.Close()
+
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{config.KAFKA_BROKER},
+		Topic:   config.ORDERS_TOPIC,
+		GroupID: "go-consumer-group-orders",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIME_OUT)*time.Millisecond)
+	defer cancel()
+
+	for {
+		msg, err := r.FetchMessage(ctx)
+		if err != nil {
+			fmt.Printf("Error while reading Order events from Kafka: %v\n", err)
+			break
+		}
+
+		fmt.Printf("Partition: %v, Offset: %v\nKey: %s, Message: %s\n", msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
+
+		// de-serialise event and put it into DB...
+		var event model.OrderEvent
+		json.Unmarshal(msg.Value, &event)
+		success := consumer.AddOrderEventToDB(db, event)
+
+		if !success {
+			break
+		}
+		// commit the offset
+		r.CommitMessages(ctx, msg)
 	}
 }

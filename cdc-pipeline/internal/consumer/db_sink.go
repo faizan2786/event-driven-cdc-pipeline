@@ -28,7 +28,7 @@ func ConnectToDB() (*sql.DB, error) {
 	return db, nil
 }
 
-// AddUserEventsToDB inserts user event data into the database.
+// AddUserEventToDB inserts user event data into the database.
 //
 // userData is the JSON payload of a user event read from Kafka.
 func AddUserEventToDB(db *sql.DB, u model.UserEvent) bool {
@@ -39,7 +39,7 @@ func AddUserEventToDB(db *sql.DB, u model.UserEvent) bool {
 		fmt.Println("Adding User")
 		dob, err := u.DOB.MarshalJSON()
 		if err != nil {
-			fmt.Printf("AddUserEventsToDB: %v\n", err)
+			fmt.Printf("AddUserEventToDB: %v\n", err)
 			return false
 		}
 		_, err = db.Exec("INSERT INTO users (id, name, dob, created_at) VALUES ($1, $2, $3, $4)", u.UserId, u.Name, string(dob), u.CreatedAt)
@@ -54,7 +54,35 @@ func AddUserEventToDB(db *sql.DB, u model.UserEvent) bool {
 	}
 
 	if err != nil {
-		fmt.Printf("AddUserEventsToDB: %v\n", err)
+		fmt.Printf("AddUserEventToDB: %v\n", err)
+		return false
+	}
+	return true
+}
+
+// AddOrderEventToDB inserts order event data into the database.
+//
+// orderData is the JSON payload of a user event read from Kafka.
+func AddOrderEventToDB(db *sql.DB, o model.OrderEvent) bool {
+
+	var err error
+
+	switch o.Type {
+	case model.CREATE:
+		fmt.Println("Creating an Order")
+		_, err = db.Exec("INSERT into orders (id, status, user_id, quantity, total_amount, placed_at) VALUES ($1, $2, $3, $4, $5, $6)", o.OrderId, o.Status, o.UserId, o.Quantity, o.OrderTotal, o.PlacedAt)
+	case model.UPDATE:
+		fmt.Println("Updating Order Status")
+		_, err = db.Exec("UPDATE orders SET status=$1, modified_at=$2 WHERE id=$3", o.Status, o.ModifiedAt, o.OrderId)
+	case model.DELETE:
+		fmt.Println("Cancelling an Order")
+		_, err = db.Exec("UPDATE orders SET status=$1, modified_at=$2, is_deleted='T' WHERE id=$3", o.Status, o.ModifiedAt, o.OrderId)
+	default:
+		err = fmt.Errorf("Unknown Order event type.")
+	}
+
+	if err != nil {
+		fmt.Printf("AddOrderEventToDB: %v\n", err)
 		return false
 	}
 	return true
