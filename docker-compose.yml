@@ -60,6 +60,7 @@ services:
       - "shared_preload_libraries=pgoutput" # output plugin for logical decoding (default)
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./table-creation.sql:/docker-entrypoint-initdb.d/table-creation.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cdc_db"]
       interval: 6s
