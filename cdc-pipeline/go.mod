@@ -1,4 +1,4 @@
-module github.com/faizan2786/system-design/cdc-pipeline
+module github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline
 
 go 1.23.0
 

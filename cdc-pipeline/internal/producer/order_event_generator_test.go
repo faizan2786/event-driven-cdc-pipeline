@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/google/uuid"
 )
 

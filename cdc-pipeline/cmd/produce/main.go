@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/config"
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/producer"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/producer"
 	"github.com/segmentio/kafka-go"
 )
 

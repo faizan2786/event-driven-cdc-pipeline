@@ -31,6 +31,14 @@ func (dt *Date) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (dt *Date) String() string {
+	if dt == nil {
+		return ""
+	}
+	t := time.Time(*dt)
+	return t.Format("2006-01-02")
+}
+
 // enums...
 
 type EventType string

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/producer"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/producer"
 )
 
 // change to main to run the program in the file

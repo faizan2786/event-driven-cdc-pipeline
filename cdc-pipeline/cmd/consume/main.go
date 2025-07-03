@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/config"
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/consumer"
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/consumer"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/segmentio/kafka-go"
 )
 
-const TIME_OUT int = 5000 // in mill secs
+const TIME_OUT time.Duration = 5 * time.Second // in secs
 
 func main() {
 	var wg sync.WaitGroup
@@ -52,7 +52,7 @@ func consumeUserEvents() {
 	// get a context to cancel blocking after a time out
 	// (i.e. cancel reading when no new messages are available after the timeout)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIME_OUT)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), TIME_OUT)
 	defer cancel()
 
 	db, err := consumer.ConnectToDB()
@@ -103,7 +103,7 @@ func consumeOrderEvents() {
 		GroupID: "go-consumer-group-orders",
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIME_OUT)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), TIME_OUT)
 	defer cancel()
 
 	for {

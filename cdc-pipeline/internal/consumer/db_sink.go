@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/config"
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -37,12 +37,8 @@ func AddUserEventToDB(db *sql.DB, u model.UserEvent) bool {
 	switch u.Type {
 	case model.CREATE:
 		fmt.Println("Adding User")
-		dob, err := u.DOB.MarshalJSON()
-		if err != nil {
-			fmt.Printf("AddUserEventToDB: %v\n", err)
-			return false
-		}
-		_, err = db.Exec("INSERT INTO users (id, name, dob, created_at) VALUES ($1, $2, $3, $4)", u.UserId, u.Name, string(dob), u.CreatedAt)
+		dob := u.DOB.String()
+		_, err = db.Exec("INSERT INTO users (id, name, dob, created_at) VALUES ($1, $2, $3, $4)", u.UserId, u.Name, dob, u.CreatedAt)
 	case model.UPDATE:
 		fmt.Println("Updating User")
 		_, err = db.Exec("UPDATE users SET name=$1, modified_at=$2 WHERE id=$3", u.Name, u.ModifiedAt, u.UserId)
@@ -50,7 +46,7 @@ func AddUserEventToDB(db *sql.DB, u model.UserEvent) bool {
 		fmt.Println("Deleting User")
 		_, err = db.Exec("UPDATE users SET is_deleted=true, modified_at=$1 WHERE id=$2", u.ModifiedAt, u.UserId)
 	default:
-		err = fmt.Errorf("Unknown User event type.")
+		err = fmt.Errorf("unknown user event type")
 	}
 
 	if err != nil {
@@ -78,7 +74,7 @@ func AddOrderEventToDB(db *sql.DB, o model.OrderEvent) bool {
 		fmt.Println("Cancelling an Order")
 		_, err = db.Exec("UPDATE orders SET status=$1, modified_at=$2, is_deleted='T' WHERE id=$3", o.Status, o.ModifiedAt, o.OrderId)
 	default:
-		err = fmt.Errorf("Unknown Order event type.")
+		err = fmt.Errorf("unknown order event type")
 	}
 
 	if err != nil {

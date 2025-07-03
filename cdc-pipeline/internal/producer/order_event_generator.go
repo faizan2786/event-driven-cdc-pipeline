@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/faizan2786/system-design/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/google/uuid"
 )
 
@@ -44,7 +44,7 @@ func generateOrderEvent(eventType model.EventType, orderId string, userIds []mod
 			ModifiedAt: &currentTime,
 		}
 	default:
-		panic("Unknown Event type")
+		panic("unknown event type")
 	}
 
 	return event
