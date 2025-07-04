@@ -1,10 +1,14 @@
 package config
 
-const KAFKA_BROKER string = "localhost:9092"
+const KafkaBroker string = "localhost:9092"
 
-// topics
-const USERS_TOPIC string = "users"
-const USERS_NUM_PARTITIONS int = 3
+// topics and partitions
+const (
+	UsersTopic         string = "users"
+	UsersNumPartitions int    = 3
+)
 
-const ORDERS_TOPIC string = "orders"
-const ORDERS_NUM_PARTITIONS int = 5
+const (
+	OrdersTopic         string = "orders"
+	OrdersNumPartitions int    = 5
+)

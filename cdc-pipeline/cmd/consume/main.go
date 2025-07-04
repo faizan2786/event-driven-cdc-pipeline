@@ -13,13 +13,13 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const TIME_OUT time.Duration = 5 * time.Second // in secs
+const timeOut time.Duration = 5 * time.Second // in secs
 
 func main() {
 	var wg sync.WaitGroup
 
 	// consume user events in parallel (as a consumer group)
-	for i := 0; i < config.USERS_NUM_PARTITIONS; i++ {
+	for i := 0; i < config.UsersNumPartitions; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -28,7 +28,7 @@ func main() {
 	}
 
 	// consume order events in parallel
-	for i := 0; i < config.ORDERS_NUM_PARTITIONS; i++ {
+	for i := 0; i < config.OrdersNumPartitions; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -43,8 +43,8 @@ func main() {
 func consumeUserEvents() {
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{config.KAFKA_BROKER},
-		Topic:   config.USERS_TOPIC,
+		Brokers: []string{config.KafkaBroker},
+		Topic:   config.UsersTopic,
 		GroupID: "go-consumer-group-users",
 	})
 	defer reader.Close()
@@ -52,7 +52,7 @@ func consumeUserEvents() {
 	// get a context to cancel blocking after a time out
 	// (i.e. cancel reading when no new messages are available after the timeout)
 
-	ctx, cancel := context.WithTimeout(context.Background(), TIME_OUT)
+	ctx, cancel := context.WithTimeout(context.Background(), timeOut)
 	defer cancel()
 
 	db, err := consumer.ConnectToDB()
@@ -98,12 +98,12 @@ func consumeOrderEvents() {
 	defer db.Close()
 
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{config.KAFKA_BROKER},
-		Topic:   config.ORDERS_TOPIC,
+		Brokers: []string{config.KafkaBroker},
+		Topic:   config.OrdersTopic,
 		GroupID: "go-consumer-group-orders",
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), TIME_OUT)
+	ctx, cancel := context.WithTimeout(context.Background(), timeOut)
 	defer cancel()
 
 	for {

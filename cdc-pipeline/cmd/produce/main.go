@@ -12,20 +12,22 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const USER_BATCH_SIZE int = 7
-const ORDER_BATCH_SIZE int = 10
+const (
+	userBatchSize  int = 7
+	orderBatchSize int = 10
+)
 
 func main() {
-	userIds := produceUserEvents(USER_BATCH_SIZE, 1)
-	produceOrderEvents(userIds, ORDER_BATCH_SIZE, 1)
+	userIds := produceUserEvents(userBatchSize, 1)
+	produceOrderEvents(userIds, orderBatchSize, 1)
 }
 
 // returns list of User ids (to be used for order events)
 func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	writer := &kafka.Writer{
-		Addr:      kafka.TCP(config.KAFKA_BROKER),
-		Topic:     config.USERS_TOPIC,
+		Addr:      kafka.TCP(config.KafkaBroker),
+		Topic:     config.UsersTopic,
 		Balancer:  &kafka.Hash{}, // partition by the Key in the message
 		BatchSize: batchSize,
 	}
@@ -71,8 +73,8 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 	writer := &kafka.Writer{
-		Addr:                   kafka.TCP(config.KAFKA_BROKER),
-		Topic:                  config.ORDERS_TOPIC,
+		Addr:                   kafka.TCP(config.KafkaBroker),
+		Topic:                  config.OrdersTopic,
 		Balancer:               &kafka.Hash{}, // partition by the Key in the message
 		BatchSize:              batchSize,
 		AllowAutoTopicCreation: true,

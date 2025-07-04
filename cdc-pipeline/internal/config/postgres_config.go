@@ -1,6 +1,8 @@
 package config
 
-const PGAddr string = "localhost:5432"
-const PGUser string = "postgres"
-const PGPassword string = "postgres"
-const PGDBName string = "cdc_db"
+const (
+	PGAddr     string = "localhost:5432"
+	PGUser     string = "postgres"
+	PGPassword string = "postgres"
+	PGDBName   string = "cdc_db"
+)

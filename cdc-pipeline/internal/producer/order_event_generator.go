@@ -56,8 +56,8 @@ func GenerateRandomOrderEvents(n int, userIds []model.UUID) []model.OrderEvent {
 	var generatedEvents []model.OrderEvent
 
 	// generate around
-	// 70% create events
-	// 20% update events
+	// 60% create events
+	// 30% update events
 	// 10% delete events
 
 	// CREATE

@@ -81,8 +81,8 @@ func GenerateRandomUserEvents(n int) []model.UserEvent {
 	var generatedEvents []model.UserEvent
 
 	// generate around
-	// 70% create events
-	// 20% update events
+	// 60% create events
+	// 30% update events
 	// 10% delete events
 
 	// CREATE
