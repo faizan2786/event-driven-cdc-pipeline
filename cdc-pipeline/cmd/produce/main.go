@@ -15,6 +15,8 @@ import (
 const (
 	userBatchSize  int = 7
 	orderBatchSize int = 10
+	maxAttempts    int = 5
+	backOffTime    int = 2 // number of seconds to wait between retry attempts
 )
 
 func main() {
@@ -27,7 +29,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	// create the topic if it doesn't exist
 	if !topicExists(config.KafkaBroker, config.UsersTopic) {
-		err := createTopic(config.KafkaBroker, config.UsersTopic, config.UsersNumPartitions, 0)
+		err := createTopic(config.KafkaBroker, config.UsersTopic, config.UsersNumPartitions)
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
 		if err != nil {
 			panic(err)
@@ -65,15 +67,17 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 			msgBatch = append(msgBatch, msg)
 		}
 
-		err := writer.WriteMessages(context.Background(), msgBatch...)
-
-		if err != nil {
-			fmt.Printf("❌ Failed to write User events: %v\n", err)
-			os.Exit(1)
-
+		// write with retry for the first batch (in case topic is not ready to write yet)
+		if i == 0 {
+			writeWithRetry(writer, config.UsersTopic, msgBatch, maxAttempts, backOffTime)
 		} else {
-			fmt.Printf("✅ Sent a batch of %d User events\n", len(msgBatch))
+			err := writer.WriteMessages(context.Background(), msgBatch...)
+			if err != nil {
+				fmt.Printf("❌ Failed to write User events: %v\n", err)
+				os.Exit(1)
+			}
 		}
+		fmt.Printf("✅ Sent a batch of %d User events\n", len(msgBatch))
 	}
 	fmt.Println("Number of unique users created: ", len(myUserIDs))
 	return myUserIDs
@@ -83,7 +87,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 	if !topicExists(config.KafkaBroker, config.OrdersTopic) {
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
-		err := createTopic(config.KafkaBroker, config.OrdersTopic, config.OrdersNumPartitions, 5)
+		err := createTopic(config.KafkaBroker, config.OrdersTopic, config.OrdersNumPartitions)
 		if err != nil {
 			panic(err)
 		}
@@ -119,16 +123,19 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 			msgBatch = append(msgBatch, msg)
 		}
 
-		err := writer.WriteMessages(context.Background(), msgBatch...)
-
-		if err != nil {
-			fmt.Printf("❌ Failed to write Order events: %v\n", err)
-			os.Exit(1)
-
+		// write with retry for the first batch (in case topic is not ready to write yet)
+		if i == 0 {
+			writeWithRetry(writer, config.OrdersTopic, msgBatch, maxAttempts, backOffTime)
 		} else {
-			fmt.Printf("✅ Sent a batch of %d Order events\n", len(msgBatch))
+			err := writer.WriteMessages(context.Background(), msgBatch...)
+			if err != nil {
+				fmt.Printf("❌ Failed to write Order events: %v\n", err)
+				os.Exit(1)
+			}
 		}
 
-		fmt.Println("Number of unique users used for new orders: ", len(myUserIDs))
+		fmt.Printf("✅ Sent a batch of %d Order events\n", len(msgBatch))
 	}
+
+	fmt.Println("Number of unique users used for new orders: ", len(myUserIDs))
 }

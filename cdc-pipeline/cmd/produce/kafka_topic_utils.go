@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -31,9 +33,7 @@ func topicExists(broker string, topic string) bool {
 	return topics[topic]
 }
 
-// sleep - seconds to wait after topic creation.
-// Allowing some time to finish off topic creation
-func createTopic(broker string, topic string, partitions int, sleep int) error {
+func createTopic(broker string, topic string, partitions int) error {
 	conn, err := kafka.Dial("tcp", broker)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Kafka broker at %s: %v", broker, err)
@@ -66,7 +66,25 @@ func createTopic(broker string, topic string, partitions int, sleep int) error {
 
 	fmt.Printf("Topic '%s' created with %d partitions\n", topic, partitions)
 
-	time.Sleep(time.Duration(sleep) * time.Second)
-
 	return nil
+}
+
+func writeWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message, maxAttempts int, backOffTimeout int) {
+	writeSuccess := false
+	var err error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err = writer.WriteMessages(context.Background(), msgBatch...)
+		if err != nil {
+			fmt.Printf("Writing to '%s' topic failed on attempt %d/%d. Waiting for %d seconds...\n", topic, attempt+1, maxAttempts, backOffTimeout)
+			time.Sleep(2 * time.Second)
+		} else {
+			writeSuccess = true
+			break
+		}
+	}
+	// exit if failure after max. attempt
+	if !writeSuccess {
+		fmt.Printf("❌ Failed to write Order events after maximum attempts: %v\n", err)
+		os.Exit(1)
+	}
 }
