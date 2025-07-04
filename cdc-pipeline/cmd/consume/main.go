@@ -70,6 +70,11 @@ func consumeUserEvents() {
 		}
 		fmt.Printf("Partition: %v, Offset: %v\nKey: %s, Message: %s\n", msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
 
+		// ignore test messages
+		if string(msg.Key) == config.TestMsgKey {
+			continue
+		}
+
 		// de-serialise event and put it into DB...
 		var u model.UserEvent
 		err = json.Unmarshal(msg.Value, &u)
@@ -114,6 +119,11 @@ func consumeOrderEvents() {
 		}
 
 		fmt.Printf("Partition: %v, Offset: %v\nKey: %s, Message: %s\n", msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
+
+		// ignore test messages
+		if string(msg.Key) == config.TestMsgKey {
+			continue
+		}
 
 		// de-serialise event and put it into DB...
 		var event model.OrderEvent

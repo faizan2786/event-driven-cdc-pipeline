@@ -27,7 +27,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	// create the topic if it doesn't exist
 	if !topicExists(config.KafkaBroker, config.UsersTopic) {
-		err := createTopic(config.KafkaBroker, config.UsersTopic, config.UsersNumPartitions, 0)
+		err := createTopic(config.KafkaBroker, config.UsersTopic, config.UsersNumPartitions)
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
 		if err != nil {
 			panic(err)
@@ -83,7 +83,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 	if !topicExists(config.KafkaBroker, config.OrdersTopic) {
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
-		err := createTopic(config.KafkaBroker, config.OrdersTopic, config.OrdersNumPartitions, 5)
+		err := createTopic(config.KafkaBroker, config.OrdersTopic, config.OrdersNumPartitions)
 		if err != nil {
 			panic(err)
 		}
