@@ -4,6 +4,7 @@ This project implements a Change Data Capture (CDC) pipeline using Go, Kafka, Po
 
 ## Project Structure
 
+
 ```
 event-store-cdc-pipeline/
 ├── cdc-pipeline/         # Go module containing all application code
@@ -12,6 +13,7 @@ event-store-cdc-pipeline/
 │   ├── go.mod, go.sum    # Go module files
 ├── docker-compose.yml    # Docker Compose for running dependencies (Kafka, Postgres, etc.)
 ├── table-creation.sql    # SQL script to initialize Postgres schema
+├── configure-debezium.sh # Shell script to register Debezium connector for Postgres
 ```
 
 - **cdc-pipeline/**: Main Go application (see its README for details)
@@ -26,9 +28,18 @@ event-store-cdc-pipeline/
    ```
    This will start all the required services: Kafka, Postgres (with schema), Cassandra, Debezium, and Kafka UI.
 
-2. **Build and run Go commands:**
+2. **Configure Debezium connector:**
+   
+   Run the provided shell script to register the Debezium PostgreSQL connector:
+   ```sh
+   chmod +x configure-debezium.sh   # Enable execution if not already
+   ./configure-debezium.sh
+   ```
+   > **Note:** You must make the script executable before running it (see `chmod +x` above).
+
+3. **Build and run Go commands:**
    See [cdc-pipeline/README.md](cdc-pipeline/README.md) for details on producing and consuming events.
 
 ---
 
-For more details, see the Go module's [README](cdc-pipeline/README.md). 
+For more details, see the Go module's [README](cdc-pipeline/README.md).
