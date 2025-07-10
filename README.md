@@ -1,6 +1,9 @@
 # Event Driven CDC Pipeline
 
-This project implements a Change Data Capture (CDC) pipeline using Go, Kafka, PostgreSQL, and Cassandra. It uses `User` and `Order` events as examples to demonstrate how to produce and consume events to and from kafka, sink event data to a transactional DB, capture changes to data in the database via CDC (using Debezium) and then sink the captured change events to a secondary database (i.e. Cassandra), supporting event-driven architectures and analytics use cases.
+This project simulates an event-driven workflow by producing domain (i.e. business) events and consuming them to update our system's primary database (Postgres). It then uses Change Data Capture (CDC) to publish changes from the database, allowing us to keep any external system (such as Cassandra in this case) in sync with our primary DB. The project uses technologies like Go, Kafka, PostgreSQL, and Cassandra to demonstrate this flow in practice.
+
+It uses `User` and `Order` events as examples to demonstrate how to produce and consume business events to and from Kafka.
+The example shows how to sink event data to a transactional DB, capture changes to data in the database via CDC (using Debezium), and then sink the captured change events to a secondary database (i.e. Cassandra), supporting event-driven architectures and analytics use cases.
 
 ## Project Structure
 
