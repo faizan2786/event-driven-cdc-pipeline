@@ -11,29 +11,33 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-func topicExists(broker string, topic string) bool {
+func topicExists(topic string, brokers ...string) bool {
 
-	conn, err := kafka.Dial("tcp", broker)
-	if err != nil {
-		panic(fmt.Sprintf("failed to connect to Kafka broker at %s: %v\n", broker, err))
+	kafkaClient := &kafka.Client{
+		Addr:    kafka.TCP(brokers...),
+		Timeout: 5 * time.Second,
 	}
-	defer conn.Close()
 
-	partitions, err := conn.ReadPartitions()
+	// Get cluster metadata
+	clusterInfo, err := kafkaClient.Metadata(context.Background(), &kafka.MetadataRequest{})
 	if err != nil {
-		panic(fmt.Sprintf("failed to read partitions: %v\n", err))
+		panic(fmt.Sprintf("failed to connect to Kafka cluster: %v\n", err))
 	}
+
+	fmt.Printf("Kafka cluster controller found: %v\n", clusterInfo.Controller)
 
 	topics := make(map[string]bool)
-	for _, p := range partitions {
-		topics[p.Topic] = true
+	for _, t := range clusterInfo.Topics {
+		if !t.Internal {
+			topics[t.Name] = true
+		}
 	}
 
 	// Check if the topic exists in the map
 	return topics[topic]
 }
 
-func createTopic(broker string, topic string, partitions int) error {
+func createTopic(broker string, topic string, partitions int, replicationFactor int) error {
 	conn, err := kafka.Dial("tcp", broker)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Kafka broker at %s: %v", broker, err)
@@ -55,7 +59,7 @@ func createTopic(broker string, topic string, partitions int) error {
 		{
 			Topic:             topic,
 			NumPartitions:     partitions,
-			ReplicationFactor: 1,
+			ReplicationFactor: replicationFactor,
 		},
 	}
 

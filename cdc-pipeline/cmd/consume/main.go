@@ -43,7 +43,7 @@ func main() {
 func consumeUserEvents() {
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{config.KafkaBroker},
+		Brokers: config.KafkaBrokers,
 		Topic:   config.UsersTopic,
 		GroupID: "go-consumer-group-users",
 	})
@@ -98,7 +98,7 @@ func consumeOrderEvents() {
 	defer db.Close()
 
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{config.KafkaBroker},
+		Brokers: config.KafkaBrokers,
 		Topic:   config.OrdersTopic,
 		GroupID: "go-consumer-group-orders",
 	})

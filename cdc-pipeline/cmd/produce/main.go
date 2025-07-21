@@ -28,16 +28,16 @@ func main() {
 func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	// create the topic if it doesn't exist
-	if !topicExists(config.KafkaBroker, config.UsersTopic) {
-		err := createTopic(config.KafkaBroker, config.UsersTopic, config.UsersNumPartitions)
+	if !topicExists(config.UsersTopic, config.KafkaBrokers...) {
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
+		err := createTopic(config.KafkaBrokers[0], config.UsersTopic, config.UsersNumPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
 		}
 	}
 
 	writer := &kafka.Writer{
-		Addr:      kafka.TCP(config.KafkaBroker),
+		Addr:      kafka.TCP(config.KafkaBrokers...),
 		Topic:     config.UsersTopic,
 		Balancer:  &kafka.Hash{}, // partition by the Key in the message
 		BatchSize: batchSize,
@@ -85,16 +85,16 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
-	if !topicExists(config.KafkaBroker, config.OrdersTopic) {
+	if !topicExists(config.OrdersTopic, config.KafkaBrokers...) {
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
-		err := createTopic(config.KafkaBroker, config.OrdersTopic, config.OrdersNumPartitions)
+		err := createTopic(config.KafkaBrokers[0], config.OrdersTopic, config.OrdersNumPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
 		}
 	}
 
 	writer := &kafka.Writer{
-		Addr:      kafka.TCP(config.KafkaBroker),
+		Addr:      kafka.TCP(config.KafkaBrokers...),
 		Topic:     config.OrdersTopic,
 		Balancer:  &kafka.Hash{}, // partition by the Key in the message
 		BatchSize: batchSize,
