@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/producer"
 	"github.com/segmentio/kafka-go"
@@ -28,9 +29,9 @@ func main() {
 func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	// create the topic if it doesn't exist
-	if !topicExists(config.UsersTopic, config.KafkaBrokers...) {
+	if !kafkautils.TopicExists(config.UsersTopic, config.KafkaBrokers...) {
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
-		err := createTopic(config.KafkaBrokers[0], config.UsersTopic, config.UsersNumPartitions, config.KafkaReplicationFactor)
+		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.UsersTopic, config.UsersNumPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
 		}
@@ -69,7 +70,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 		// write with retry for the first batch (in case topic is not ready to write yet)
 		if i == 0 {
-			writeWithRetry(writer, config.UsersTopic, msgBatch, maxAttempts, backOffTime)
+			kafkautils.WriteWithRetry(writer, config.UsersTopic, msgBatch, maxAttempts, backOffTime)
 		} else {
 			err := writer.WriteMessages(context.Background(), msgBatch...)
 			if err != nil {
@@ -85,9 +86,9 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
-	if !topicExists(config.OrdersTopic, config.KafkaBrokers...) {
+	if !kafkautils.TopicExists(config.OrdersTopic, config.KafkaBrokers...) {
 		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
-		err := createTopic(config.KafkaBrokers[0], config.OrdersTopic, config.OrdersNumPartitions, config.KafkaReplicationFactor)
+		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.OrdersTopic, config.OrdersNumPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
 		}
@@ -127,7 +128,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 		// write with retry for the first batch (in case topic is not ready to write yet)
 		if i == 0 {
-			writeWithRetry(writer, config.OrdersTopic, msgBatch, maxAttempts, backOffTime)
+			kafkautils.WriteWithRetry(writer, config.OrdersTopic, msgBatch, maxAttempts, backOffTime)
 		} else {
 			err := writer.WriteMessages(context.Background(), msgBatch...)
 			if err != nil {

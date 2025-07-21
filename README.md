@@ -35,8 +35,7 @@ event-store-cdc-pipeline/
    
    Run the provided shell script to register the Debezium PostgreSQL connector:
    ```sh
-   chmod +x configure-debezium.sh   # Enable execution if not already
-   ./configure-debezium.sh
+   chmod +x configure-debezium.sh && ./configure-debezium.sh
    ```
    > **Note:** You must make the script executable before running it (see `chmod +x` above).
 

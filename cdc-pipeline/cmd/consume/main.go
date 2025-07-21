@@ -10,6 +10,7 @@ import (
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/consumer"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/segmentio/kafka-go"
 )
@@ -17,6 +18,7 @@ import (
 const timeOut time.Duration = 10 * time.Second // in secs
 
 func main() {
+
 	var wg sync.WaitGroup
 
 	// start two consumer routines (one per each topic)
@@ -51,6 +53,15 @@ func handleOrderEvent(msg kafka.Message, db *sql.DB) bool {
 
 // consume user events - blocks until new message arrives or time out reached
 func consumeUserEvents() {
+
+	// create the topic if it doesn't exist
+	if !kafkautils.TopicExists(config.UsersTopic, config.KafkaBrokers...) {
+		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
+		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.UsersTopic, config.UsersNumPartitions, config.KafkaReplicationFactor)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	// create a channel per partition
 	chPerPartition := make(map[int]chan kafka.Message)
@@ -102,6 +113,14 @@ func consumeUserEvents() {
 
 // consume user events - blocks until new message arrives or time out reached
 func consumeOrderEvents() {
+
+	if !kafkautils.TopicExists(config.OrdersTopic, config.KafkaBrokers...) {
+		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
+		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.OrdersTopic, config.OrdersNumPartitions, config.KafkaReplicationFactor)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	// create a channel per partition
 	chPerPartition := make(map[int]chan kafka.Message)

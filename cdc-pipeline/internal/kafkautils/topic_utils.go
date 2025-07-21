@@ -1,4 +1,4 @@
-package main
+package kafkautils
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-func topicExists(topic string, brokers ...string) bool {
+func TopicExists(topic string, brokers ...string) bool {
 
 	kafkaClient := &kafka.Client{
 		Addr:    kafka.TCP(brokers...),
@@ -37,7 +37,7 @@ func topicExists(topic string, brokers ...string) bool {
 	return topics[topic]
 }
 
-func createTopic(broker string, topic string, partitions int, replicationFactor int) error {
+func CreateTopic(broker string, topic string, partitions int, replicationFactor int) error {
 	conn, err := kafka.Dial("tcp", broker)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Kafka broker at %s: %v", broker, err)
@@ -73,7 +73,7 @@ func createTopic(broker string, topic string, partitions int, replicationFactor 
 	return nil
 }
 
-func writeWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message, maxAttempts int, backOffTimeout int) {
+func WriteWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message, maxAttempts int, backOffTimeout int) {
 	writeSuccess := false
 	var err error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
