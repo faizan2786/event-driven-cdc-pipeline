@@ -79,7 +79,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 		}
 		fmt.Printf("✅ Sent a batch of %d User events\n", len(msgBatch))
 	}
-	fmt.Println("Number of unique users created: ", len(myUserIDs))
+	fmt.Println("Number of users created: ", len(myUserIDs))
 	return myUserIDs
 }
 
@@ -101,6 +101,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 	}
 	defer writer.Close()
 
+	numOrders := 0
 	var myUserIDs map[model.UUID]bool = make(map[model.UUID]bool)
 
 	for i := 0; i < numBatches; i++ {
@@ -112,6 +113,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 		for _, e := range orderEvents {
 
 			if e.Type == model.CREATE {
+				numOrders += 1
 				myUserIDs[e.UserId] = true
 			}
 
@@ -137,5 +139,6 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 		fmt.Printf("✅ Sent a batch of %d Order events\n", len(msgBatch))
 	}
 
+	fmt.Println("Number of orders created: ", numOrders)
 	fmt.Println("Number of unique users used for new orders: ", len(myUserIDs))
 }
