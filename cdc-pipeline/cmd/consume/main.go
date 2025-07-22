@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	initialBackOff          int           = 1                // number of seconds to wait before the first retry attempt
-	groupMaxAttempts        int           = 6                // max. attempts to retry for group status check
-	processEventMaxAttempts int           = 3                // max. attempts to retry for processing message
-	consumptionTimeOut      time.Duration = 20 * time.Second // total time to keep the consumer alive (in seconds)
+	initialBackOffSeconds   = 1                // Initial backoff in seconds for retries
+	groupMaxAttempts        = 6                // Max attempts to check consumer group readiness
+	processEventMaxAttempts = 3                // Max attempts to process a message
+	idleTimeout             = 10 * time.Second // Consumer idle timeout duration
 )
 
 type eventHandler func(msg kafka.Message, db *sql.DB) bool
@@ -94,7 +94,7 @@ func consumeEvents(c *consumerConfig) {
 	})
 
 	// check consumer group state and wait for it to be ready before start reading
-	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, groupMaxAttempts, initialBackOff)
+	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, groupMaxAttempts, initialBackOffSeconds)
 	if err != nil {
 		panic(err)
 	}
@@ -112,24 +112,34 @@ func consumeEvents(c *consumerConfig) {
 		chPerPartition[i] = make(chan kafka.Message, 100) // buffered channel
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), consumptionTimeOut)
-	defer cancel()
-
 	// dispatch message processing to workers (one per partition)
 	fmt.Printf("Starting a worker per partition for '%s' topic...\n", c.topic)
 	wg := &sync.WaitGroup{}
 	for i := range c.numPartitions {
 		wg.Add(1)
-		startWorker(chPerPartition[i], r, db, c.handler, wg, ctx)
+		startWorker(chPerPartition[i], r, db, c.handler, wg, context.Background())
 	}
 
+	lastMsgSeen := time.Now()
+	// start consuming messages with an idle timeout...
+	// (if the time passed since last message received is greater than the idleTimeout seconds then stop the consumer)
 	for {
+		ctx, cancel := context.WithTimeout(context.Background(), idleTimeout)
 		msg, err := r.FetchMessage(ctx)
+		cancel()
+
 		if err != nil {
-			fmt.Printf("Error while reading Users events from Kafka: %v\n", err)
+			if err == context.DeadlineExceeded {
+				if time.Since(lastMsgSeen) >= idleTimeout {
+					fmt.Printf("No new messages received for %v, shutting down consumer\n", idleTimeout)
+					break
+				}
+			}
+			fmt.Printf("Error while reading events from '%s' topic: %v\n", c.topic, err)
 			break
 		}
 
+		lastMsgSeen = time.Now()
 		// dispatch the message to channel based on its partition
 		chPerPartition[msg.Partition] <- msg
 	}
@@ -156,7 +166,7 @@ func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler
 				if success {
 					break
 				}
-				delay := initialBackOff << i
+				delay := initialBackOffSeconds << i
 				fmt.Printf("[Attempt %d/%d] DB event handler failed for '%s', trying again in %d seconds...\n", i+1, processEventMaxAttempts, msg.Topic, delay)
 				time.Sleep(time.Duration(delay) * time.Second)
 			}
