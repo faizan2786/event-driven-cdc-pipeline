@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	userBatchSize  int = 7
-	orderBatchSize int = 10
-	maxAttempts    int = 5
-	backOffTime    int = 2 // number of seconds to wait between retry attempts
+	userBatchSize   int = 7
+	orderBatchSize  int = 10
+	maxAttempts     int = 5
+	backOffInterval int = 2 // number of seconds to wait between retry attempts
 )
 
 func main() {
@@ -70,7 +70,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 		// write with retry for the first batch (in case topic is not ready to write yet)
 		if i == 0 {
-			kafkautils.WriteWithRetry(writer, config.UsersTopic, msgBatch, maxAttempts, backOffTime)
+			kafkautils.WriteWithRetry(writer, config.UsersTopic, msgBatch, maxAttempts, backOffInterval)
 		} else {
 			err := writer.WriteMessages(context.Background(), msgBatch...)
 			if err != nil {
@@ -128,7 +128,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 		// write with retry for the first batch (in case topic is not ready to write yet)
 		if i == 0 {
-			kafkautils.WriteWithRetry(writer, config.OrdersTopic, msgBatch, maxAttempts, backOffTime)
+			kafkautils.WriteWithRetry(writer, config.OrdersTopic, msgBatch, maxAttempts, backOffInterval)
 		} else {
 			err := writer.WriteMessages(context.Background(), msgBatch...)
 			if err != nil {

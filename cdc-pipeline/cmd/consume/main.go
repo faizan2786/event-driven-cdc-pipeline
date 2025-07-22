@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	maxAttempts        int           = 6
-	backOffStartTime   int           = 1                // number of seconds to wait before the first retry attempt
-	consumptionTimeOut time.Duration = 15 * time.Second // total time to keep the consumer alive (in seconds)
+	initialBackOff          int           = 1                // number of seconds to wait before the first retry attempt
+	groupMaxAttempts        int           = 6                // max. attempts to retry for group status check
+	processEventMaxAttempts int           = 3                // max. attempts to retry for processing message
+	consumptionTimeOut      time.Duration = 20 * time.Second // total time to keep the consumer alive (in seconds)
 )
 
 type eventHandler func(msg kafka.Message, db *sql.DB) bool
@@ -93,7 +94,7 @@ func consumeEvents(c *consumerConfig) {
 	})
 
 	// check consumer group state and wait for it to be ready before start reading
-	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, maxAttempts, backOffStartTime)
+	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, groupMaxAttempts, initialBackOff)
 	if err != nil {
 		panic(err)
 	}
@@ -140,16 +141,31 @@ func consumeEvents(c *consumerConfig) {
 	wg.Wait() // Wait for all workers to finish
 }
 
-func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, msgHandler eventHandler, wg *sync.WaitGroup, ctx context.Context) {
+func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler eventHandler, wg *sync.WaitGroup, ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		for msg := range ch {
 			fmt.Printf("Topic: %s, Partition: %v, Offset: %v\nKey: %s, Message: %s\n",
 				msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
-			success := msgHandler(msg, db)
+
+			var success bool
+
+			// process message with a backoff retry strategy...
+			for i := 0; i < processEventMaxAttempts; i++ {
+				success = dbHandler(msg, db)
+				if success {
+					break
+				}
+				delay := initialBackOff << i
+				fmt.Printf("[Attempt %d/%d] DB event handler failed for '%s', trying again in %d seconds...\n", i+1, processEventMaxAttempts, msg.Topic, delay)
+				time.Sleep(time.Duration(delay) * time.Second)
+			}
+
+			// stop consuming further if the current message was failed to process
 			if !success {
 				break
 			}
+
 			// commit the offset
 			r.CommitMessages(ctx, msg)
 		}
