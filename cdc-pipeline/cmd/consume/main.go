@@ -15,7 +15,11 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const timeOut time.Duration = 10 * time.Second // in secs
+const (
+	maxAttempts        int           = 6
+	backOffStartTime   int           = 1                // number of seconds to wait before the first retry attempt
+	consumptionTimeOut time.Duration = 15 * time.Second // total time to keep the consumer alive (in seconds)
+)
 
 func main() {
 
@@ -63,6 +67,19 @@ func consumeUserEvents() {
 		}
 	}
 
+	// create a new reader (this will cause rebalancing of partition in Kafka)
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: config.KafkaBrokers,
+		Topic:   config.UsersTopic,
+		GroupID: config.UsersConsumerGroupId,
+	})
+
+	// check consumer group state and wait for it to be ready before start reading
+	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, config.UsersConsumerGroupId, maxAttempts, backOffStartTime)
+	if err != nil {
+		panic(err)
+	}
+
 	// create a channel per partition
 	chPerPartition := make(map[int]chan kafka.Message)
 	for i := range config.UsersNumPartitions {
@@ -76,16 +93,10 @@ func consumeUserEvents() {
 	}
 	defer db.Close()
 
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: config.KafkaBrokers,
-		Topic:   config.UsersTopic,
-		GroupID: "go-consumer-group-users",
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeOut)
+	ctx, cancel := context.WithTimeout(context.Background(), consumptionTimeOut)
 	defer cancel()
 
-	// start workers (one per partition)
+	// dispatch message processing to workers (one per partition)
 	fmt.Printf("Starting a worker per partition for '%s' topic...\n", config.UsersTopic)
 	wg := &sync.WaitGroup{}
 	for i := range config.UsersNumPartitions {
@@ -122,6 +133,18 @@ func consumeOrderEvents() {
 		}
 	}
 
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: config.KafkaBrokers,
+		Topic:   config.OrdersTopic,
+		GroupID: config.OrdersConsumerGroupId,
+	})
+
+	// check consumer group state and wait for it to be ready before start reading
+	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, config.OrdersConsumerGroupId, maxAttempts, backOffStartTime)
+	if err != nil {
+		panic(err)
+	}
+
 	// create a channel per partition
 	chPerPartition := make(map[int]chan kafka.Message)
 	for i := range config.OrdersNumPartitions {
@@ -135,13 +158,7 @@ func consumeOrderEvents() {
 	}
 	defer db.Close()
 
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: config.KafkaBrokers,
-		Topic:   config.OrdersTopic,
-		GroupID: "go-consumer-group-orders",
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeOut)
+	ctx, cancel := context.WithTimeout(context.Background(), consumptionTimeOut)
 	defer cancel()
 
 	// start workers (one per partition)

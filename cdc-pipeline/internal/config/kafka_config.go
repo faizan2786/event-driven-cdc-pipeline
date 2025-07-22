@@ -6,13 +6,15 @@ const KafkaReplicationFactor int = 3
 
 // topics and partitions
 const (
-	UsersTopic         string = "users"
-	UsersNumPartitions int    = 3
+	UsersTopic           string = "users"
+	UsersNumPartitions   int    = 3
+	UsersConsumerGroupId string = "go-consumer-group-users"
 )
 
 const (
-	OrdersTopic         string = "orders"
-	OrdersNumPartitions int    = 5
+	OrdersTopic           string = "orders"
+	OrdersNumPartitions   int    = 5
+	OrdersConsumerGroupId string = "go-consumer-group-orders"
 )
 
 const TestMsgKey string = "test"
