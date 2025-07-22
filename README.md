@@ -1,46 +1,101 @@
 # Event Driven CDC Pipeline
 
-This project simulates an event-driven workflow by producing domain (i.e. business) events and consuming them to update our system's primary database (Postgres). It then uses Change Data Capture (CDC) to publish changes from the database, allowing us to keep any external system (such as Cassandra in this case) in sync with our primary DB. The project uses technologies like Go, Kafka, PostgreSQL, and Cassandra to demonstrate this flow in practice.
+A real-time Change Data Capture (CDC) pipeline built with Go, demonstrating event-driven architecture using Kafka, PostgreSQL, and Cassandra. This project simulates producing business events, consuming them to update a primary database, and using CDC to keep external systems in sync.
 
-It uses `User` and `Order` events as examples to demonstrate how to produce and consume business events to and from Kafka.
-The example shows how to sink event data to a transactional DB, capture changes to data in the database via CDC (using Debezium), and then sink the captured change events to a secondary database (i.e. Cassandra), supporting event-driven architectures and analytics use cases.
+The system uses `User` and `Order` events to demonstrate how to produce and consume business events, sink data to PostgreSQL, capture database changes via Debezium, and replicate to Cassandra as an external data sink.
+
+## Architecture
+
+- **3-Node Kafka Cluster** with KRaft mode (no Zookeeper required)
+- **PostgreSQL** as primary database with logical replication
+- **Debezium Kafka Connect** for Change Data Capture
+- **Go producers/consumers** with idle timeout and graceful shutdown
+- **Cassandra** as analytical database
+- **Kafka UI** for monitoring and management
 
 ## Project Structure
 
-
 ```
-event-store-cdc-pipeline/
-├── cdc-pipeline/         # Go module containing all application code
-│   ├── cmd/              # CLI entrypoints for producing and consuming events
-│   ├── internal/         # Internal Go packages (producer, consumer, config, model)
-│   ├── go.mod, go.sum    # Go module files
-├── docker-compose.yml    # Docker Compose for running dependencies (Kafka, Postgres, etc.)
-├── table-creation.sql    # SQL script to initialize Postgres schema
-├── configure-debezium.sh # Shell script to register Debezium connector for Postgres
+event-driven-cdc-pipeline/
+├── cdc-pipeline/                    # Go module containing all application code
+│   ├── cmd/                        # CLI entrypoints
+│   │   ├── produce/                # Event producer with topic management
+│   │   └── consume/                # Multi-topic consumer with worker pools
+│   ├── internal/                   # Internal Go packages
+│   │   ├── config/                 # Configuration (multi-broker support)
+│   │   ├── consumer/               # Database sink logic
+│   │   ├── producer/               # Event generators
+│   │   ├── model/                  # Event data structures
+│   │   └── kafkautils/             # Kafka utilities (topic/group management)
+│   └── go.mod, go.sum              # Go module files
+├── docker-compose.yml              # Infrastructure services
+├── table-creation.sql              # PostgreSQL schema initialization
+└── configure-debezium.sh           # Debezium connector setup
 ```
 
-- **cdc-pipeline/**: Main Go application (see its README for details)
-- **docker-compose.yml**: Spins up Kafka, Postgres, Cassandra, Debezium, and Kafka UI
-- **table-creation.sql**: Initializes the Postgres database schema
+- **cdc-pipeline/**: Main Go application with modular design
+- **docker-compose.yml**: 3-node Kafka cluster + PostgreSQL + Cassandra + Debezium + Kafka UI
 
-## Quickstart
+## Services & Ports
 
-1. **Start dependencies:**
-   ```sh
-   docker-compose up
+| Service | Port | Description |
+|---------|------|-------------|
+| **Kafka Cluster** | | |
+| kafka1 | 9092 | Broker 1 (external) |
+| kafka2 | 9093 | Broker 2 (external) |
+| kafka3 | 9094 | Broker 3 (external) |
+| **Infrastructure** | | |
+| PostgreSQL | 5432 | Primary database |
+| Cassandra | 9042 | Analytics database |
+| Debezium Connect | 8083 | CDC connector API |
+| Kafka UI | 8080 | Web management interface |
+
+## Key Features
+
+- **High Availability**: 3-broker Kafka cluster with replication factor 3
+- **Modular Design**: Easy to add new topics, consumers, and event handlers
+- **Worker Pools**: One worker per partition for parallel processing
+- **Failure Handling**: Retries with exponential backoff for failed operations
+- **Topic Management**: Automatic topic creation with proper partitioning
+
+## Quick Start
+
+1. **Start the services:**
+   ```bash
+   docker-compose up -d
    ```
-   This will start all the required services: Kafka, Postgres (with schema), Cassandra, Debezium, and Kafka UI.
 
 2. **Configure Debezium connector:**
-   
-   Run the provided shell script to register the Debezium PostgreSQL connector:
-   ```sh
+   ```bash
    chmod +x configure-debezium.sh && ./configure-debezium.sh
    ```
-   > **Note:** You must make the script executable before running it (see `chmod +x` above).
 
-3. **Build and run Go commands:**
-   See [cdc-pipeline/README.md](cdc-pipeline/README.md) for details on producing and consuming events.
+3. **Build and run Go applications to produce/consume events:**
+   ```bash
+   cd cdc-pipeline
+   
+   # Install dependencies
+   go mod tidy
+   
+   # Generate and produce events
+   go run cmd/produce/main.go
+   
+   # Consume events with idle timeout
+   go run cmd/consume/main.go
+   ```
+
+## Database Connection
+
+Connect to PostgreSQL:
+```bash
+docker exec -it postgres psql -U postgres -d cdc_db
+```
+
+View table structure:
+```sql
+\d users    -- Describe users table
+\d orders   -- Describe orders table
+```
 
 ---
 

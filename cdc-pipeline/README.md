@@ -15,24 +15,26 @@ cdc-pipeline/
 ├── cmd/                            # CLI entrypoints
 │   ├── produce/                    # Produces random events to Kafka
 │   |   ├── event_client.go         # A test program to generate events and inspect in json format
-│   |   ├── kafka_topic_utils.go    # Kafka topic management utilities
-│   |   └── main.go                 # Main producer application
+│   |   └── main.go                 # Main producer application with topic management
 │   └── consume/                    # Consumes events from Kafka and writes to Postgres
-│   |   └── main.go                 # Main consumer application
+│   |   └── main.go                 # Multi-topic consumer with worker pools and idle timeout
 ├── internal/
-│   ├── config/                     # Configuration for Kafka and Postgres
+│   ├── config/                     # Configuration for 3-broker Kafka cluster and Postgres
 │   ├── consumer/                   # Functions to write event data to Postgres
+│   ├── kafkautils/                 # Kafka utilities (topic management, consumer groups)
+│   │   ├── topic_utils.go          # Topic creation, existence checks, write retry logic
+│   │   └── group_utils.go          # Consumer group management utilities
 │   ├── model/                      # Event and data models
 │   └── producer/                   # Functions to generate random events
 ```
 
 ### Subdirectories
-- **cmd/produce/**: CLI tool to generate and send random `User` and `Order` events to Kafka.
-  - **kafka_topic_utils.go**: Utilities for Kafka topic management including topic existence checks, topic creation and writes with retry.
-- **cmd/consume/**: CLI tool to consume `User` and `Order` events from Kafka and write them to Postgres.
+- **cmd/produce/**: CLI tool to generate and send random `User` and `Order` events to Kafka with automatic topic creation.
+- **cmd/consume/**: CLI tool with multi-topic consumer that uses worker pools per partition and idle timeout for graceful shutdown.
+- **internal/kafkautils/**: Reusable Kafka utilities for topic management, consumer group operations, and retry logic.
 - **internal/producer/**: Functions to generate random `User` and `Order` events.
 - **internal/consumer/**: Functions to read `User` and `Order` event data and write them to Postgres.
-- **internal/config/**: Configuration constants for Kafka and Postgres.
+- **internal/config/**: Configuration constants for 3-broker Kafka cluster and Postgres connection.
 
 ## Running Tests
 
@@ -42,6 +44,15 @@ To run all unit tests in the `internal` directory:
 cd cdc-pipeline
 go test ./internal/...
 ```
+
+## Key Features
+
+- **3-Broker Kafka Cluster**: Configured for `localhost:9092`, `localhost:9093`, `localhost:9094` with replication factor 3
+- **Intelligent Consumer**: Multi-topic consumer with idle timeout that gracefully shuts down when no messages arrive
+- **Worker Pool Architecture**: One worker per partition for parallel message processing
+- **Automatic Topic Management**: Creates topics with proper partitioning if they don't exist
+- **Retry Logic**: Exponential backoff for failed Kafka write operations
+- **Modular Design**: Easy to extend with new event types and handlers
 
 ## Running Commands
 
@@ -56,47 +67,66 @@ Build and run the consumer to read events from Kafka and write to Postgres:
 ```sh
 go run ./cmd/consume
 ```
+The consumer will:
+- Start workers for each partition of `users` and `orders` topics
+- Process messages in parallel
+- Gracefully exit when no messages arrive for the idle timeout period (10 seconds by default)
+- Commit offsets after successful processing
 
 ---
 
-Ensure your services (Kafka, Postgres) are running via Docker Compose before running the Go commands. 
+Ensure your services (3-node Kafka cluster, Postgres) are running via Docker Compose before running the Go commands. 
 
 
-### Kafka Topic Management & Write Retry Logic
+### Kafka Utilities & Consumer Architecture
 
-The `cmd/produce/kafka_topic_utils.go` file provides utilities for managing Kafka topics and robust message writing:
+The `internal/kafkautils/` package provides robust utilities for Kafka operations:
 
-#### Functions
+#### Topic Management (`topic_utils.go`)
 
-- **`topicExists(broker string, topic string) bool`**
-  - Checks if a Kafka topic exists by reading partition metadata.
+- **`TopicExists(topic string, brokers ...string) bool`**
+  - Checks if a Kafka topic exists across the cluster.
 
-- **`createTopic(broker string, topic string, partitions int) error`**
-  - Creates a new Kafka topic with the specified number of partitions.
+- **`CreateTopic(broker string, topic string, partitions int, replicationFactor int) error`**
+  - Creates a new Kafka topic with specified partitions and replication factor.
 
-- **`writeWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message, maxAttempts int, backOffTimeout int)`**
-  - Writes a batch of messages to Kafka with retry logic.
-  - Retries up to `maxAttempts` if the write fails, waiting `backOffTimeout` seconds between attempts.
-  - Exits the program if all attempts fail.
+- **`WriteWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message, maxAttempts int, backOffTimeout int)`**
+  - Writes messages with fixed backoff interval and retry logic.
 
-#### Usage Example (Write with Retry on First Batch)
+#### Consumer Group Management (`group_utils.go`)
 
-When producing events, the first batch for each topic is written using retry logic to handle cases where the topic may not be immediately ready for writes (e.g., the topic was just created by the producer):
+- **`WaitForGroupReady(brokers []string, groupID string, maxAttempts int, backOffStartTime int) error`**
+  - Ensures consumer group is ready before starting consumption with exponential backoff and retry logic.
+
+#### Consumer Architecture
+
+The consumer uses a worker pool architecture for high throughput:
 
 ```go
-for i := 0; i < numBatches; i++ {
-    // ... prepare msgBatch ...
-    if i == 0 {
-        writeWithRetry(writer, config.UsersTopic, msgBatch, maxAttempts, backOffTime)
-    } else {
-        // Subsequent batches write directly without retries
-        err := writer.WriteMessages(context.Background(), msgBatch...)
-    }
+type consumerConfig struct {
+    Topic         string
+    NumPartitions int
+    GroupID       string
+    Handler       eventHandler
+}
+
+type eventHandler func(msg kafka.Message, db *sql.DB) bool
+```
+
+**Features:**
+- **Multi-topic support**: Single application handles multiple event types
+- **Per-partition workers**: One goroutine per partition per topic for parallel processing
+- **Idle timeout**: Exits when no messages arrive for a configurable period
+- **Retry logic**: Exponential backoff for failed operations
+
+**Usage Example:**
+```go
+consumers := []consumerConfig{
+    {config.UsersTopic, config.UsersNumPartitions, config.UsersConsumerGroupId, handleUserEvent},
+    {config.OrdersTopic, config.OrdersNumPartitions, config.OrdersConsumerGroupId, handleOrderEvent},
+}
+
+for _, c := range consumers {
+    go consumeEvents(&c)
 }
 ```
-This pattern is used for both User and Order event producers.
-#### Key Features
-
-- **Automatic Topic Creation**: Creates topics if they don't exist before producing events.
-- **Write Retry on First Batch**: Ensures the first batch of messages is reliably written, even if the topic is not immediately ready.
-- **Robust Error Handling**: Exits on repeated write failures to avoid silent data loss.
