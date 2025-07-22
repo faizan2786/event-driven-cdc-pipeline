@@ -21,22 +21,40 @@ const (
 	consumptionTimeOut time.Duration = 15 * time.Second // total time to keep the consumer alive (in seconds)
 )
 
+type eventHandler func(msg kafka.Message, db *sql.DB) bool
+
+type consumerConfig struct {
+	topic         string
+	numPartitions int
+	groupId       string
+	handler       eventHandler
+}
+
 func main() {
 
+	consumerConfigs := []consumerConfig{
+		{
+			topic:         config.UsersTopic,
+			numPartitions: config.UsersNumPartitions,
+			groupId:       config.UsersConsumerGroupId,
+			handler:       handleUserEvent,
+		},
+		{
+			topic:         config.OrdersTopic,
+			numPartitions: config.OrdersNumPartitions,
+			groupId:       config.OrdersConsumerGroupId,
+			handler:       handleOrderEvent,
+		},
+	}
+
 	var wg sync.WaitGroup
-
-	// start two consumer routines (one per each topic)
-	wg.Add(1)
-	go func() {
-		consumeUserEvents()
-		wg.Done()
-	}()
-
-	wg.Add(1)
-	go func() {
-		consumeOrderEvents()
-		wg.Done()
-	}()
+	for i := range consumerConfigs {
+		wg.Add(1)
+		go func(c *consumerConfig) {
+			defer wg.Done()
+			consumeEvents(c)
+		}(&consumerConfigs[i])
+	}
 
 	wg.Wait()
 }
@@ -55,13 +73,13 @@ func handleOrderEvent(msg kafka.Message, db *sql.DB) bool {
 	return consumer.AddOrderEventToDB(db, event)
 }
 
-// consume user events - blocks until new message arrives or time out reached
-func consumeUserEvents() {
+// consume events - blocks until new message arrives or time out reached
+func consumeEvents(c *consumerConfig) {
 
 	// create the topic if it doesn't exist
-	if !kafkautils.TopicExists(config.UsersTopic, config.KafkaBrokers...) {
-		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
-		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.UsersTopic, config.UsersNumPartitions, config.KafkaReplicationFactor)
+	if !kafkautils.TopicExists(c.topic, config.KafkaBrokers...) {
+		fmt.Printf("Topic '%s' not found. Creating the topic...\n", c.topic)
+		err := kafkautils.CreateTopic(config.KafkaBrokers[0], c.topic, c.numPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
 		}
@@ -70,20 +88,14 @@ func consumeUserEvents() {
 	// create a new reader (this will cause rebalancing of partition in Kafka)
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: config.KafkaBrokers,
-		Topic:   config.UsersTopic,
-		GroupID: config.UsersConsumerGroupId,
+		Topic:   c.topic,
+		GroupID: c.groupId,
 	})
 
 	// check consumer group state and wait for it to be ready before start reading
-	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, config.UsersConsumerGroupId, maxAttempts, backOffStartTime)
+	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, maxAttempts, backOffStartTime)
 	if err != nil {
 		panic(err)
-	}
-
-	// create a channel per partition
-	chPerPartition := make(map[int]chan kafka.Message)
-	for i := range config.UsersNumPartitions {
-		chPerPartition[i] = make(chan kafka.Message, 100) // buffered channel
 	}
 
 	db, err := consumer.ConnectToDB()
@@ -93,15 +105,21 @@ func consumeUserEvents() {
 	}
 	defer db.Close()
 
+	// create a channel per partition
+	chPerPartition := make(map[int]chan kafka.Message)
+	for i := range c.numPartitions {
+		chPerPartition[i] = make(chan kafka.Message, 100) // buffered channel
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), consumptionTimeOut)
 	defer cancel()
 
 	// dispatch message processing to workers (one per partition)
-	fmt.Printf("Starting a worker per partition for '%s' topic...\n", config.UsersTopic)
+	fmt.Printf("Starting a worker per partition for '%s' topic...\n", c.topic)
 	wg := &sync.WaitGroup{}
-	for i := range config.UsersNumPartitions {
+	for i := range c.numPartitions {
 		wg.Add(1)
-		startWorker(chPerPartition[i], r, db, handleUserEvent, wg, ctx)
+		startWorker(chPerPartition[i], r, db, c.handler, wg, ctx)
 	}
 
 	for {
@@ -116,79 +134,13 @@ func consumeUserEvents() {
 	}
 
 	// closing worker channels
-	for i := range config.UsersNumPartitions {
+	for i := range c.numPartitions {
 		close(chPerPartition[i])
 	}
 	wg.Wait() // Wait for all workers to finish
 }
 
-// consume user events - blocks until new message arrives or time out reached
-func consumeOrderEvents() {
-
-	if !kafkautils.TopicExists(config.OrdersTopic, config.KafkaBrokers...) {
-		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
-		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.OrdersTopic, config.OrdersNumPartitions, config.KafkaReplicationFactor)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: config.KafkaBrokers,
-		Topic:   config.OrdersTopic,
-		GroupID: config.OrdersConsumerGroupId,
-	})
-
-	// check consumer group state and wait for it to be ready before start reading
-	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, config.OrdersConsumerGroupId, maxAttempts, backOffStartTime)
-	if err != nil {
-		panic(err)
-	}
-
-	// create a channel per partition
-	chPerPartition := make(map[int]chan kafka.Message)
-	for i := range config.OrdersNumPartitions {
-		chPerPartition[i] = make(chan kafka.Message, 100) // buffered channel
-	}
-
-	db, err := consumer.ConnectToDB()
-	if err != nil {
-		msg := fmt.Sprintf("Failed to connect to the DB:\n%v\n", err)
-		panic(msg)
-	}
-	defer db.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), consumptionTimeOut)
-	defer cancel()
-
-	// start workers (one per partition)
-	fmt.Printf("Starting a worker per partition for '%s' topic...\n", config.OrdersTopic)
-	wg := &sync.WaitGroup{}
-	for i := range config.OrdersNumPartitions {
-		wg.Add(1)
-		startWorker(chPerPartition[i], r, db, handleOrderEvent, wg, ctx)
-	}
-
-	for {
-		msg, err := r.FetchMessage(ctx)
-		if err != nil {
-			fmt.Printf("Error while reading Order events from Kafka: %v\n", err)
-			break
-		}
-
-		// dispatch the message to channel based on its partition
-		chPerPartition[msg.Partition] <- msg
-	}
-
-	// closing worker channels
-	for i := range config.OrdersNumPartitions {
-		close(chPerPartition[i])
-	}
-	wg.Wait() // Wait for all workers to finish
-}
-
-func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, msgHandler func(msg kafka.Message, db *sql.DB) bool,
-	wg *sync.WaitGroup, ctx context.Context) {
+func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, msgHandler eventHandler, wg *sync.WaitGroup, ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		for msg := range ch {
