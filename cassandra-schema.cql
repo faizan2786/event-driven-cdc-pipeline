@@ -1,0 +1,41 @@
+CREATE KEYSPACE IF NOT EXISTS cdc_keyspace
+WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'};
+
+USE cdc_keyspace;
+
+-- users table
+CREATE TABLE IF NOT EXISTS users (
+    id uuid, 
+    name text, 
+    dob date, 
+    created_at timestamp,
+    modified_at timestamp,
+    is_deleted boolean, 
+    PRIMARY KEY (id, name)
+);
+
+-- orders table partitioned by order id
+CREATE TABLE IF NOT EXISTS orders (
+    id uuid,
+    user_id uuid,
+    status text, -- PLACED, SHIPPED, CANCELLED, DELIVERED
+    quantity int,
+    total_amount decimal,
+    placed_at timestamp,
+    modified_at timestamp,
+    is_deleted boolean,
+    PRIMARY KEY (id, user_id)
+);
+
+-- orders table partitioned by user_id
+CREATE TABLE IF NOT EXISTS orders_by_user (
+    user_id uuid,
+    order_id uuid,
+    status text, -- PLACED, SHIPPED, CANCELLED, DELIVERED
+    quantity int,
+    total_amount decimal,
+    placed_at timestamp,
+    modified_at timestamp,
+    is_deleted boolean,
+    PRIMARY KEY (user_id, order_id)
+);

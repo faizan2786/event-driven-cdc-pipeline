@@ -125,7 +125,7 @@ services:
       - "shared_preload_libraries=pgoutput" # output plugin for logical decoding (default)
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./table-creation.sql:/docker-entrypoint-initdb.d/table-creation.sql
+      - ./postgres-schema.sql:/docker-entrypoint-initdb.d/postgres-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cdc_db"]
       interval: 6s
@@ -260,6 +260,29 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+
+  # Cassandra initialization service
+  cassandra-init:
+    image: cassandra:5
+    container_name: cassandra-init
+    volumes:
+      - ./cassandra-schema.cql:/cassandra-schema.cql
+    depends_on:
+      cassandra1:
+        condition: service_healthy
+      cassandra2:
+        condition: service_healthy
+      cassandra3:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for Cassandra cluster to be ready...'
+        sleep 10
+        echo 'Initializing Cassandra schema...'
+        cqlsh cassandra1 -f /cassandra-schema.cql
+        echo 'Cassandra schema initialized successfully!'
+      "
+    restart: "no"
 
 volumes:
   kafka1_data:

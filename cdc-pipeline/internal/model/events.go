@@ -55,6 +55,7 @@ const (
 	PLACED    OrderStatus = "PLACED"
 	CANCELLED OrderStatus = "CANCELLED"
 	SHIPPED   OrderStatus = "SHIPPED"
+	DELIVERED OrderStatus = "DELIVERED"
 )
 
 // events...
