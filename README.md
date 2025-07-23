@@ -8,9 +8,9 @@ The system uses `User` and `Order` events to demonstrate how to produce and cons
 
 - **3-Node Kafka Cluster** with KRaft mode (no Zookeeper required)
 - **PostgreSQL** as primary database with logical replication
-- **Debezium Kafka Connect** for Change Data Capture
+- **3-Node Cassandra Cluster** as an external (sink) database cluster with replication
+- **Debezium Kafka Connect** for Change Data Capture from PostgreSQL to Kafka
 - **Go producers/consumers** with idle timeout and graceful shutdown
-- **Cassandra** as analytical database
 - **Kafka UI** for monitoring and management
 
 ## Project Structure
@@ -29,12 +29,13 @@ event-driven-cdc-pipeline/
 │   │   └── kafkautils/             # Kafka utilities (topic/group management)
 │   └── go.mod, go.sum              # Go module files
 ├── docker-compose.yml              # Infrastructure services
-├── table-creation.sql              # PostgreSQL schema initialization
+├── postgres-schema.sql             # PostgreSQL schema initialization
+├── cassandra-schema.cql            # Cassandra schema initialization
 └── configure-debezium.sh           # Debezium connector setup
 ```
 
 - **cdc-pipeline/**: Main Go application with modular design
-- **docker-compose.yml**: 3-node Kafka cluster + PostgreSQL + Cassandra + Debezium + Kafka UI
+- **docker-compose.yml**: Complete infrastructure with 3-node Kafka + PostgreSQL + 3-node Cassandra + Debezium + Kafka UI
 
 ## Services & Ports
 
@@ -46,13 +47,22 @@ event-driven-cdc-pipeline/
 | kafka3 | 9094 | Broker 3 (external) |
 | **Infrastructure** | | |
 | PostgreSQL | 5432 | Primary database |
-| Cassandra | 9042 | Analytics database |
+| **Cassandra Cluster** | | |
+| cassandra1 | 9042 | Cassandra node 1 (Seed)|
+| cassandra2 | 9043 | Cassandra node 2 |
+| cassandra3 | 9044 | Cassandra node 3 |
+| **CDC Management** | | |
 | Debezium Connect | 8083 | CDC connector API |
 | Kafka UI | 8080 | Web management interface |
 
 ## Key Features
 
-- **High Availability**: 3-broker Kafka cluster with replication factor 3
+- **High Availability**: 
+  - 3-broker Kafka cluster with replication factor 3
+  - 3-node Cassandra cluster with replication factor 3
+- **Automatic Schema Setup**: 
+  - PostgreSQL schema initialized on startup
+  - Cassandra keyspace and tables created on startup
 - **Modular Design**: Easy to add new topics, consumers, and event handlers
 - **Worker Pools**: One worker per partition for parallel processing
 - **Failure Handling**: Retries with exponential backoff for failed operations
@@ -64,6 +74,7 @@ event-driven-cdc-pipeline/
    ```bash
    docker-compose up -d
    ```
+   Wait for all services to be up and running.
 
 2. **Configure Debezium connector:**
    ```bash
@@ -84,17 +95,37 @@ event-driven-cdc-pipeline/
    go run cmd/consume/main.go
    ```
 
-## Database Connection
+## Database Connections
 
-Connect to PostgreSQL:
+**Connect to PostgreSQL:**
 ```bash
 docker exec -it postgres psql -U postgres -d cdc_db
 ```
 
-View table structure:
+View PostgreSQL table structure:
 ```sql
 \d users    -- Describe users table
 \d orders   -- Describe orders table
+```
+
+**Check Cassandra cluster status:**
+```bash
+docker exec cassandra1 nodetool status
+```
+**Note:** Above command should show all 3 nodes listed with status `UN` (Up and Normal). If any node is not listed, check its logs for errors and restart the failed node.
+
+**Connect to any Cassandra node:**
+```bash
+docker exec -it cassandra1 cqlsh
+```
+
+View table schema:
+```cql
+USE cdc_keyspace;
+DESCRIBE TABLES;
+DESCRIBE TABLE users;
+DESCRIBE TABLE orders;
+DESCRIBE TABLE orders_by_user;
 ```
 
 ---
