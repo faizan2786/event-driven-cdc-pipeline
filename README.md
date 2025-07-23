@@ -17,40 +17,29 @@ The system uses `User` and `Order` events to demonstrate how to produce and cons
 
 ```
 event-driven-cdc-pipeline/
-├── cdc-pipeline/                    # Go module containing all application code
-│   ├── cmd/                        # CLI entrypoints
-│   │   ├── produce/                # Event producer with topic management
-│   │   └── consume/                # Multi-topic consumer with worker pools
-│   ├── internal/                   # Internal Go packages
-│   │   ├── config/                 # Configuration (multi-broker support)
-│   │   ├── consumer/               # Database sink logic
-│   │   ├── producer/               # Event generators
-│   │   ├── model/                  # Event data structures
-│   │   └── kafkautils/             # Kafka utilities (topic/group management)
-│   └── go.mod, go.sum              # Go module files
+├── cdc-pipeline/                   # Go module containing the application code
 ├── docker-compose.yml              # Infrastructure services
-├── postgres-schema.sql             # PostgreSQL schema initialization
-├── cassandra-schema.cql            # Cassandra schema initialization
-└── configure-debezium.sh           # Debezium connector setup
+├── postgres-schema.sql             # PostgreSQL schema initialization script
+├── cassandra-schema.cql            # Cassandra schema initialization script
+└── debezium-config.sh              # Debezium connector initialization
 ```
-
 - **cdc-pipeline/**: Main Go application with modular design
-- **docker-compose.yml**: Complete infrastructure with 3-node Kafka + PostgreSQL + 3-node Cassandra + Debezium + Kafka UI
+- **docker-compose.yml**: Complete microservice infrastructure with 3-node Kafka + PostgreSQL + 3-node Cassandra + Debezium + Kafka UI
 
 ## Services & Ports
 
 | Service | Port | Description |
 |---------|------|-------------|
 | **Kafka Cluster** | | |
-| kafka1 | 9092 | Broker 1 (external) |
-| kafka2 | 9093 | Broker 2 (external) |
-| kafka3 | 9094 | Broker 3 (external) |
+| kafka1 | 9092 | Broker 1 |
+| kafka2 | 9093 | Broker 2 |
+| kafka3 | 9094 | Broker 3 |
 | **Infrastructure** | | |
 | PostgreSQL | 5432 | Primary database |
 | **Cassandra Cluster** | | |
-| cassandra1 | 9042 | Cassandra node 1 (Seed)|
-| cassandra2 | 9043 | Cassandra node 2 |
-| cassandra3 | 9044 | Cassandra node 3 |
+| cassandra1 | 9042 | node 1 (Seed)|
+| cassandra2 | 9043 | node 2 |
+| cassandra3 | 9044 | node 3 |
 | **CDC Management** | | |
 | Debezium Connect | 8083 | CDC connector API |
 | Kafka UI | 8080 | Web management interface |
@@ -70,18 +59,23 @@ event-driven-cdc-pipeline/
 
 ## Quick Start
 
-1. **Start the services:**
+**Start the services:**
    ```bash
    docker-compose up -d
    ```
-   Wait for all services to be up and running.
+Wait for all services to be up and running (it may take a few minutes).
 
-2. **Configure Debezium connector:**
-   ```bash
-   chmod +x configure-debezium.sh && ./configure-debezium.sh
-   ```
+**Check Cassandra cluster status:**
+```bash
+docker exec cassandra1 nodetool status
+```
+**Note:** Above command should show all 3 nodes listed with status `UN` (Up and Normal).
+If any node is missing, check its logs for errors and **restart** the failed node using command such as:
+```bash
+docker-compose restart cassandra3
+```
 
-3. **Build and run Go applications to produce/consume events:**
+**Build and run Go applications to produce/consume events:**
    ```bash
    cd cdc-pipeline
    
@@ -108,14 +102,9 @@ View PostgreSQL table structure:
 \d orders   -- Describe orders table
 ```
 
-**Check Cassandra cluster status:**
+**Connect to Cassandra cluster:**
 ```bash
-docker exec cassandra1 nodetool status
-```
-**Note:** Above command should show all 3 nodes listed with status `UN` (Up and Normal). If any node is not listed, check its logs for errors and restart the failed node.
-
-**Connect to any Cassandra node:**
-```bash
+# Connect to any one Cassandra node
 docker exec -it cassandra1 cqlsh
 ```
 

@@ -168,6 +168,23 @@ services:
       retries: 3
       start_period: 10s
 
+  # Debezium PostgreSQL connector initialization service
+  debezium-connector-init:
+    image: debezium/connect:2.6
+    container_name: debezium-connector-init
+    volumes:
+      - ./debezium-config.sh:/debezium-config.sh
+    depends_on:
+      debezium-kafka-connect:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Configuring Debezium PostgreSQL connector...'
+        . /debezium-config.sh
+        echo 'Debezium connector configured successfully!'
+      "
+    restart: "no"
+
   # Kafka UI for monitoring
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -185,8 +202,8 @@ services:
       - kafka2
       - kafka3
       - debezium-kafka-connect
-  
-  # Cassandra for CDC sink
+
+  # Cassandra cluster for CDC sink
   cassandra1:
     image: cassandra:5
     hostname: cassandra1
@@ -261,7 +278,7 @@ services:
       timeout: 10s
       retries: 10
 
-  # Cassandra initialization service
+  # Cassandra schema initialization service
   cassandra-init:
     image: cassandra:5
     container_name: cassandra-init

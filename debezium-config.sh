@@ -19,4 +19,4 @@ curl -X POST -H "Content-Type: application/json" \
       "value.converter": "org.apache.kafka.connect.json.JsonConverter"
     }
   }' \
-  http://localhost:8083/connectors
+  http://debezium:8083/connectors
