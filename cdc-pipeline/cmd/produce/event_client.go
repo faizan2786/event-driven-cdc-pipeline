@@ -8,7 +8,7 @@ import (
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/producer"
 )
 
-// change to main to run the program in the file
+// change to main to run program in this file
 func main_test() {
 	const NUM_EVENTS int = 7
 	userEvents := producer.GenerateRandomUserEvents(NUM_EVENTS)

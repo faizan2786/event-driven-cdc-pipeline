@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- orders table partitioned by order id
 CREATE TABLE IF NOT EXISTS orders (
-    id uuid,
+    order_id uuid,
     user_id uuid,
     status text, -- PLACED, SHIPPED, CANCELLED, DELIVERED
     quantity int,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS orders (
     placed_at timestamp,
     modified_at timestamp,
     is_deleted boolean,
-    PRIMARY KEY (id, user_id)
+    PRIMARY KEY (order_id, user_id)
 );
 
 -- orders table partitioned by user_id
