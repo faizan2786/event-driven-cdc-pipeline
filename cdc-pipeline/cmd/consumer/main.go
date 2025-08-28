@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/consumer"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/sink"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -64,14 +64,14 @@ func handleUserEvent(msg kafka.Message, db *sql.DB) bool {
 	// de-serialise event and put it into DB...
 	var event model.UserEvent
 	json.Unmarshal(msg.Value, &event)
-	return consumer.AddUserEventToDB(db, event)
+	return sink.AddUserEventToDB(db, event)
 }
 
 func handleOrderEvent(msg kafka.Message, db *sql.DB) bool {
 	// de-serialise event and put it into DB...
 	var event model.OrderEvent
 	json.Unmarshal(msg.Value, &event)
-	return consumer.AddOrderEventToDB(db, event)
+	return sink.AddOrderEventToDB(db, event)
 }
 
 // consume events - blocks until new message arrives or time out reached
@@ -99,7 +99,7 @@ func consumeEvents(c *consumerConfig) {
 		panic(err)
 	}
 
-	db, err := consumer.ConnectToDB()
+	db, err := sink.ConnectToDB()
 	if err != nil {
 		msg := fmt.Sprintf("Failed to connect to the DB:\n%v\n", err)
 		panic(msg)

@@ -13,28 +13,38 @@ Currently, it provides commands to generate (produce) and consume `User` and `Or
 ```
 cdc-pipeline/
 ├── cmd/                            # CLI entrypoints
-│   ├── produce/                    # Produces random events to Kafka
-│   |   ├── event_client.go         # A test program to generate events and inspect in json format
-│   |   └── main.go                 # Main producer application with topic management
-│   └── consume/                    # Consumes events from Kafka and writes to Postgres
-│   |   └── main.go                 # Multi-topic consumer with worker pools and idle timeout
+│   ├── producer/                   # Produces random User and Order events to Kafka
+│   │   ├── generate_events.go      # A test program to generate events and output them in json format
+│   │   └── main.go                 # Main producer application
+│   └── consumer/                   # Consumes events from Kafka and writes to Postgres DB
+│       └── main.go                 # Multi-topic consumer with worker pools and idle timeout
 ├── internal/
-│   ├── config/                     # Configuration for 3-broker Kafka cluster and Postgres
-│   ├── consumer/                   # Functions to write event data to Postgres
-│   ├── kafkautils/                 # Kafka utilities (topic management, consumer groups)
-│   │   ├── topic_utils.go          # Topic creation, existence checks, write retry logic
-│   │   └── group_utils.go          # Consumer group management utilities
+│   ├── config/                     # Configuration constants and settings
+│   │   ├── kafka_config.go         # Kafka config
+│   │   └── postgres_config.go      # Postgres config
+│   ├── eventgenerator/             # Event generator logic (and tests)
+│   │   ├── order_event_generator.go
+│   │   ├── order_event_generator_test.go
+│   │   ├── user_event_generator.go
+│   │   └── user_event_generator_test.go
+│   ├── kafkautils/                 # Kafka utilities (topic and group management)
+│   │   ├── group_utils.go
+│   │   └── topic_utils.go
 │   ├── model/                      # Event and data models
-│   └── producer/                   # Functions to generate random events
+│   │   └── events.go
+│   └── sink/                       # Sink event logic for DBs (and tests)
+│       ├── postgres_sink.go
+│       └── postgres_sink_test.go
 ```
 
 ### Subdirectories
-- **cmd/produce/**: CLI tool to generate and send random `User` and `Order` events to Kafka with automatic topic creation.
-- **cmd/consume/**: CLI tool with multi-topic consumer that uses worker pools per partition and idle timeout for graceful shutdown.
-- **internal/kafkautils/**: Reusable Kafka utilities for topic management, consumer group operations, and retry logic.
-- **internal/producer/**: Functions to generate random `User` and `Order` events.
-- **internal/consumer/**: Functions to read `User` and `Order` event data and write them to Postgres.
-- **internal/config/**: Configuration constants for 3-broker Kafka cluster and Postgres connection.
+- **cmd/producer/**: CLI tool to generate and send random `User` and `Order` events to Kafka.
+- **cmd/consumer/**: CLI tool with multi-topic consumer that uses worker pools per partition to consume events in parallel.
+- **internal/config/**: Kafka, Postgres and Cassandra configuration.
+- **internal/eventgenerator/**: Event generator logic and tests for `User` and `Order` events.
+- **internal/kafkautils/**: Kafka utilities for topic and group management.
+- **internal/model/**: Event and data models.
+- **internal/sink/**: Sink event logic for Postgres and Cassandra DBs.
 
 ## Running Tests
 
@@ -59,13 +69,13 @@ go test ./internal/...
 ### Produce Events
 Build and run the producer to generate and send events to Kafka:
 ```sh
-go run ./cmd/produce
+go run ./cmd/producer
 ```
 
 ### Consume Events
 Build and run the consumer to read events from Kafka and write to Postgres:
 ```sh
-go run ./cmd/consume
+go run ./cmd/consumer
 ```
 The consumer will:
 - Start workers for each partition of `users` and `orders` topics

@@ -1,4 +1,4 @@
-package producer
+package eventgenerator
 
 import (
 	"encoding/json"

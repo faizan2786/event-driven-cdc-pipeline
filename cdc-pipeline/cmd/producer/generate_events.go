@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/eventgenerator"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/producer"
 )
 
-// change to main to run program in this file
+// a test program to generate and show generated events
+// change below function name to `main` to run this program
+
 func main_test() {
 	const NUM_EVENTS int = 7
-	userEvents := producer.GenerateRandomUserEvents(NUM_EVENTS)
+	userEvents := eventgenerator.GenerateRandomUserEvents(NUM_EVENTS)
 
 	// serialise events to a json object
 	jsonUserEvents, err := json.Marshal(userEvents)
@@ -27,7 +29,7 @@ func main_test() {
 		userIds = append(userIds, e.UserId)
 	}
 
-	orderEvents := producer.GenerateRandomOrderEvents(NUM_EVENTS, userIds)
+	orderEvents := eventgenerator.GenerateRandomOrderEvents(NUM_EVENTS, userIds)
 
 	// serialise events to a json object
 	jsonOrderEvents, err := json.Marshal(orderEvents)

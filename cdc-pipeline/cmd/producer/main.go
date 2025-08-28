@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/eventgenerator"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/producer"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -49,7 +49,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	for i := 0; i < numBatches; i++ {
 
-		userEvents := producer.GenerateRandomUserEvents(batchSize)
+		userEvents := eventgenerator.GenerateRandomUserEvents(batchSize)
 
 		// prepare the kafka message batch
 		var msgBatch []kafka.Message
@@ -107,7 +107,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 	for i := 0; i < numBatches; i++ {
 
-		orderEvents := producer.GenerateRandomOrderEvents(batchSize, userIds)
+		orderEvents := eventgenerator.GenerateRandomOrderEvents(batchSize, userIds)
 
 		// prepare the kafka message batch
 		var msgBatch []kafka.Message

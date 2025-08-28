@@ -82,11 +82,11 @@ docker-compose restart cassandra3
    # Install dependencies
    go mod tidy
    
-   # Generate and produce events
-   go run cmd/produce/main.go
-   
-   # Consume events with idle timeout
-   go run cmd/consume/main.go
+  # Generate and produce events
+  go run ./cmd/producer
+
+  # Consume events with idle timeout
+  go run ./cmd/consumer
    ```
 
 ## Database Connections

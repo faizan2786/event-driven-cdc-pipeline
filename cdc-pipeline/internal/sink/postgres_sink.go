@@ -1,4 +1,4 @@
-package consumer
+package sink
 
 import (
 	"database/sql"
