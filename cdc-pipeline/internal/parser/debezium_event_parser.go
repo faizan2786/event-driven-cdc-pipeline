@@ -1,8 +1,10 @@
 package parser
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 )
@@ -31,9 +33,7 @@ func ParseDebeziumEvent(value []byte) (*model.ChangeEvent, error) {
 	if after, ok := payload["after"].(model.JsonMap); ok {
 		ev.Row = after
 	}
-	if ts, ok := payload["ts_ms"].(float64); ok {
-		ev.TsMs = int64(ts)
-	}
+	ev.TsMs = ParseDebeziumNumber[int64](payload["ts_ms"])
 
 	eventID, err := constructEventID(payload, ev.TsMs)
 	if err != nil {
@@ -73,4 +73,53 @@ func constructEventID(payload model.JsonMap, tsMs int64) (string, error) {
 	// marshal idParts to json string
 	idBytes, _ := json.Marshal(idParts)
 	return string(idBytes), nil
+}
+
+// convert debezium number (i.e. an int value) based on its type and return as type T
+func ParseDebeziumNumber[T int | int32 | int64](numberStr interface{}) T {
+	// use type switch to infer correct type of the json value
+	switch v := numberStr.(type) {
+	case float64:
+		return T(v)
+	case int:
+		return T(v)
+	case int32:
+		return T(v)
+	case int64:
+		return T(v)
+	default:
+		panic("ParseDebeziumNumber: unsupported numeric type")
+	}
+}
+
+// parse debezium decimal number with given scale (encoded as a base64 string)
+func ParseDebeziumDecimal(b64Str string, scale int) float64 {
+	// Step 1: Base64 decode
+	raw, err := base64.StdEncoding.DecodeString(b64Str)
+	if err != nil {
+		panic(err)
+	}
+
+	// Step 2: Interpret bytes as two’s complement integer
+	i := new(big.Int)
+	if len(raw) > 0 && raw[0]&0x80 != 0 { // negative number
+		// two's complement conversion
+		tmp := make([]byte, len(raw))
+		for j := range raw {
+			tmp[j] = ^raw[j]
+		}
+		i.SetBytes(tmp)
+		i.Add(i, big.NewInt(1))
+		i.Neg(i)
+	} else {
+		i.SetBytes(raw)
+	}
+
+	// Step 3: Scale: divide by 10^scale
+	scaleInt := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
+	scaleF := new(big.Float).SetInt(scaleInt)
+
+	val := new(big.Float).Quo(new(big.Float).SetInt(i), scaleF)
+	decimal, _ := val.Float64()
+	return decimal
 }

@@ -18,3 +18,9 @@ const (
 )
 
 const TestMsgKey string = "test"
+
+// debezium topics
+const (
+	DebeziumUsersTopic  string = "cdc.public.users"
+	DebeziumOrdersTopic string = "cdc.public.orders"
+)
