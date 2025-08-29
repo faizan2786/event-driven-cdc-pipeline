@@ -8,7 +8,7 @@ import (
 type UUID = string
 type DateTime = time.Time
 
-// custom date type with json marshalling
+// custom date type with json marshalling (to represent just a date part)
 type Date time.Time
 
 func (dt Date) MarshalJSON() ([]byte, error) {

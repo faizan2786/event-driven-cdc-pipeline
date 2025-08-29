@@ -39,3 +39,13 @@ CREATE TABLE IF NOT EXISTS orders_by_user (
     is_deleted boolean,
     PRIMARY KEY (user_id, order_id)
 );
+
+-- processed_events table for idempotency (insert with IF NOT EXISTS for deduplication)
+-- `ts_ms` -> col to store event produce timestamp (timestamp when the connector produced the event) in ms
+--            (cassandra doesn't support higher precision than ms for timestamps)
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id text PRIMARY KEY,
+    topic text,
+    ts_ms bigint,
+    processed_at timestamp
+);
