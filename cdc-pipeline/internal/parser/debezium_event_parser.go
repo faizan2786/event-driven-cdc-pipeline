@@ -1,10 +1,8 @@
 package parser
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 )
@@ -90,36 +88,4 @@ func ParseDebeziumNumber[T int | int32 | int64](numberStr interface{}) T {
 	default:
 		panic("ParseDebeziumNumber: unsupported numeric type")
 	}
-}
-
-// parse debezium decimal number with given scale (encoded as a base64 string)
-func ParseDebeziumDecimal(b64Str string, scale int) float64 {
-	// Step 1: Base64 decode
-	raw, err := base64.StdEncoding.DecodeString(b64Str)
-	if err != nil {
-		panic(err)
-	}
-
-	// Step 2: Interpret bytes as two’s complement integer
-	i := new(big.Int)
-	if len(raw) > 0 && raw[0]&0x80 != 0 { // negative number
-		// two's complement conversion
-		tmp := make([]byte, len(raw))
-		for j := range raw {
-			tmp[j] = ^raw[j]
-		}
-		i.SetBytes(tmp)
-		i.Add(i, big.NewInt(1))
-		i.Neg(i)
-	} else {
-		i.SetBytes(raw)
-	}
-
-	// Step 3: Scale: divide by 10^scale
-	scaleInt := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
-	scaleF := new(big.Float).SetInt(scaleInt)
-
-	val := new(big.Float).Quo(new(big.Float).SetInt(i), scaleF)
-	decimal, _ := val.Float64()
-	return decimal
 }

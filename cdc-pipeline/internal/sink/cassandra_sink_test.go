@@ -2,10 +2,12 @@ package sink
 
 import (
 	"testing"
+	"time"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/gocql/gocql"
+	"gopkg.in/inf.v0"
 )
 
 const testUserID string = "da0859fb-8eeb-44cd-97f5-df0db4f7a2c3"
@@ -47,8 +49,8 @@ func (m *mockSession) Query(stmt string, values ...interface{}) CassandraQuery {
 type mockQuery struct{}
 
 // Implement CassandraQuery interface
-func (q *mockQuery) Exec() error                    { return nil }
-func (q *mockQuery) Scan(dest ...interface{}) error { return nil }
+func (q *mockQuery) Exec() error                               { return nil }
+func (q *mockQuery) MapScan(dest map[string]interface{}) error { return nil }
 
 func TestApplyUserChange_Insert(t *testing.T) {
 	client := &CassandraClient{session: &mockSession{}}
@@ -82,11 +84,12 @@ func TestApplyUserChange_Insert(t *testing.T) {
 	}
 
 	// check the query args
+	createdAt, _ := time.Parse(time.RFC3339, ev.Row["created_at"].(string))
 	expectedArgs := []interface{}{
 		testUserUUID,
 		"Alice",
 		"2000-08-03",
-		ev.Row["created_at"].(string),
+		createdAt,
 		false,
 	}
 	for i, arg := range expectedArgs {
@@ -135,6 +138,9 @@ func TestApplyUserChange_Update(t *testing.T) {
 		}
 	}
 
+	createdAt, _ := time.Parse(time.RFC3339, ev.Row["created_at"].(string))
+	modifiedAt, _ := time.Parse(time.RFC3339, ev.Row["modified_at"].(string))
+
 	// test SELECT query args
 	expectedParams1 := []interface{}{
 		testUserUUID,
@@ -152,8 +158,8 @@ func TestApplyUserChange_Update(t *testing.T) {
 		testUserUUID,
 		"Bob",
 		"2000-08-03",
-		ev.Row["created_at"],
-		ev.Row["modified_at"],
+		createdAt,
+		modifiedAt,
 		false,
 	}
 
@@ -204,16 +210,18 @@ func TestApplyUserChange_Update_Delete(t *testing.T) {
 	}
 
 	query := mockSess.executedQueries[0]
-	expectedQuery := "UPDATE users SET modified_at = ?, is_deleted = ? WHERE id = ?"
+	expectedQuery := "UPDATE users SET modified_at = ?, is_deleted = ? WHERE id = ? and name = ?"
 
 	if query != expectedQuery {
 		t.Errorf("unexpected query: got %v, want %v", query, expectedQuery)
 	}
 
+	modifiedAt, _ := time.Parse(time.RFC3339, ev.Row["modified_at"].(string))
 	expectedParams := []interface{}{
-		ev.Row["modified_at"],
+		modifiedAt,
 		true,
 		testUserUUID,
+		"Bob",
 	}
 
 	queryArgs := mockSess.args[0]
@@ -275,17 +283,22 @@ func TestApplyOrderChange_Insert(t *testing.T) {
 		t.Errorf("unexpected query 2: got %q, want %q", mockSess.executedQueries[1], expectedQuery2)
 	}
 	// check args for first query
+	placedAt, _ := time.Parse(time.RFC3339, ev.Row["placed_at"].(string))
 	expectedArgs1 := []interface{}{
 		testOrderUUID,
 		testUserUUID,
 		"PLACED",
 		2,
-		100.52,
-		ev.Row["placed_at"].(string),
+		inf.NewDec(10052, 2),
+		placedAt,
 		false,
 	}
 	for i, arg := range expectedArgs1 {
 		if mockSess.args[0][i] != arg {
+			// use comp method for quantity - a inf.Dec type
+			if i == 4 && arg.(*inf.Dec).Cmp(mockSess.args[0][i].(*inf.Dec)) == 0 {
+				continue
+			}
 			t.Errorf("unexpected arg for query 1 at position %d: got %v, want %v", i, mockSess.args[0][i], arg)
 		}
 	}
@@ -295,12 +308,16 @@ func TestApplyOrderChange_Insert(t *testing.T) {
 		testOrderUUID,
 		"PLACED",
 		2,
-		100.52,
-		ev.Row["placed_at"].(string),
+		inf.NewDec(10052, 2),
+		placedAt,
 		false,
 	}
 	for i, arg := range expectedArgs2 {
 		if mockSess.args[1][i] != arg {
+			// use comp method for quantity - a inf.Dec type
+			if i == 4 && arg.(*inf.Dec).Cmp(mockSess.args[1][i].(*inf.Dec)) == 0 {
+				continue
+			}
 			t.Errorf("unexpected arg for query 2 at position %d: got %v, want %v", i, mockSess.args[1][i], arg)
 		}
 	}
@@ -332,7 +349,7 @@ func TestApplyOrderChange_Update(t *testing.T) {
 	if len(mockSess.executedQueries) != 2 {
 		t.Fatalf("expected 2 executed queries, got %d", len(mockSess.executedQueries))
 	}
-	expectedQuery1 := "UPDATE orders SET status = ?, modified_at = ?, is_deleted = ? WHERE order_id = ?"
+	expectedQuery1 := "UPDATE orders SET status = ?, modified_at = ?, is_deleted = ? WHERE order_id = ? AND user_id = ?"
 	expectedQuery2 := "UPDATE orders_by_user SET status = ?, modified_at = ?, is_deleted = ? WHERE user_id = ? AND order_id = ?"
 	if mockSess.executedQueries[0] != expectedQuery1 {
 		t.Errorf("unexpected query 1: got %q, want %q", mockSess.executedQueries[0], expectedQuery1)
@@ -341,11 +358,13 @@ func TestApplyOrderChange_Update(t *testing.T) {
 		t.Errorf("unexpected query 2: got %q, want %q", mockSess.executedQueries[1], expectedQuery2)
 	}
 	// check args for first query
+	modifiedAt, _ := time.Parse(time.RFC3339, ev.Row["modified_at"].(string))
 	expectedArgs1 := []interface{}{
 		"CANCELLED",
-		ev.Row["modified_at"].(string),
+		modifiedAt,
 		true,
 		testOrderUUID,
+		testUserUUID,
 	}
 	for i, arg := range expectedArgs1 {
 		if mockSess.args[0][i] != arg {
@@ -355,7 +374,7 @@ func TestApplyOrderChange_Update(t *testing.T) {
 	// check args for second query
 	expectedArgs2 := []interface{}{
 		"CANCELLED",
-		ev.Row["modified_at"].(string),
+		modifiedAt,
 		true,
 		testUserUUID,
 		testOrderUUID,
