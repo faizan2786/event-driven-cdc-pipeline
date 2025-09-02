@@ -61,7 +61,7 @@ func GenerateRandomOrderEvents(n int, userIds []model.UUID) []model.OrderEvent {
 	// 10% delete events
 
 	// CREATE
-	numCreateEvents := int(math.Round(0.6 * float64(n)))
+	numCreateEvents := int(math.Round(0.5 * float64(n)))
 
 	for i := 0; i < numCreateEvents; i++ {
 		id := uuid.New().String()
@@ -70,7 +70,7 @@ func GenerateRandomOrderEvents(n int, userIds []model.UUID) []model.OrderEvent {
 	}
 
 	// UPDATE
-	numUpdateEvents := int(math.Round(0.3 * float64(n)))
+	numUpdateEvents := int(math.Round(0.25 * float64(n)))
 	for i := 0; i < numUpdateEvents; i++ {
 		if len(myOrderIDs) == 0 {
 			break

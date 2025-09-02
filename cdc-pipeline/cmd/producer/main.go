@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	userBatchSize   int = 7
-	orderBatchSize  int = 10
+	userBatchSize   int = 4
+	orderBatchSize  int = 4
 	maxAttempts     int = 5
 	backOffInterval int = 2 // number of seconds to wait between retry attempts
 )
