@@ -10,6 +10,7 @@ import (
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/sink"
 	"github.com/segmentio/kafka-go"
@@ -79,7 +80,7 @@ func consumeEvents(c *consumerConfig) {
 
 	// create the topic if it doesn't exist
 	if !kafkautils.TopicExists(c.topic, config.KafkaBrokers...) {
-		fmt.Printf("Topic '%s' not found. Creating the topic...\n", c.topic)
+		logger.InfoLogger.Printf("Topic '%s' not found. Creating the topic...\n", c.topic)
 		err := kafkautils.CreateTopic(config.KafkaBrokers[0], c.topic, c.numPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
@@ -113,7 +114,7 @@ func consumeEvents(c *consumerConfig) {
 	}
 
 	// dispatch message processing to workers (one per partition)
-	fmt.Printf("Starting a worker per partition for '%s' topic...\n", c.topic)
+	logger.InfoLogger.Printf("Starting a worker per partition for '%s' topic...\n", c.topic)
 	wg := &sync.WaitGroup{}
 	for i := range c.numPartitions {
 		wg.Add(1)
@@ -131,11 +132,11 @@ func consumeEvents(c *consumerConfig) {
 		if err != nil {
 			if err == context.DeadlineExceeded {
 				if time.Since(lastMsgSeen) >= idleTimeout {
-					fmt.Printf("No new messages received for %v, shutting down consumer\n", idleTimeout)
+					logger.InfoLogger.Printf("No new messages received for %v, shutting down consumer\n", idleTimeout)
 					break
 				}
 			}
-			fmt.Printf("Error while reading events from '%s' topic: %v\n", c.topic, err)
+			logger.ErrorLogger.Printf("Error while reading events from '%s' topic: %v\n", c.topic, err)
 			break
 		}
 
@@ -155,7 +156,7 @@ func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler
 	go func() {
 		defer wg.Done()
 		for msg := range ch {
-			fmt.Printf("Topic: %s, Partition: %v, Offset: %v\nKey: %s, Message: %s\n",
+			logger.DebugLogger.Printf("Topic: %s, Partition: %v, Offset: %v\nKey: %s, Message: %s\n",
 				msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
 
 			var success bool
@@ -167,7 +168,7 @@ func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler
 					break
 				}
 				delay := initialBackOffSeconds << i
-				fmt.Printf("[Attempt %d/%d] DB event handler failed for '%s', trying again in %d seconds...\n", i+1, processEventMaxAttempts, msg.Topic, delay)
+				logger.DebugLogger.Printf("[Attempt %d/%d] DB event handler failed for '%s', trying again in %d seconds...\n", i+1, processEventMaxAttempts, msg.Topic, delay)
 				time.Sleep(time.Duration(delay) * time.Second)
 			}
 

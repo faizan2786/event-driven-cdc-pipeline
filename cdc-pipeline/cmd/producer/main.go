@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/eventgenerator"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/segmentio/kafka-go"
 )
@@ -30,7 +30,7 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 
 	// create the topic if it doesn't exist
 	if !kafkautils.TopicExists(config.UsersTopic, config.KafkaBrokers...) {
-		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
+		logger.InfoLogger.Printf("Topic '%s' not found. Creating the topic...\n", config.UsersTopic)
 		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.UsersTopic, config.UsersNumPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
@@ -74,20 +74,20 @@ func produceUserEvents(batchSize int, numBatches int) []model.UUID {
 		} else {
 			err := writer.WriteMessages(context.Background(), msgBatch...)
 			if err != nil {
-				fmt.Printf("❌ Failed to write User events: %v\n", err)
+				logger.ErrorLogger.Printf("❌ Failed to write User events: %v\n", err)
 				os.Exit(1)
 			}
 		}
-		fmt.Printf("✅ Sent a batch of %d User events\n", len(msgBatch))
+		logger.InfoLogger.Printf("✅ Sent a batch of %d User events\n", len(msgBatch))
 	}
-	fmt.Println("Number of users created: ", len(myUserIDs))
+	logger.DebugLogger.Println("Number of users created: ", len(myUserIDs))
 	return myUserIDs
 }
 
 func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 
 	if !kafkautils.TopicExists(config.OrdersTopic, config.KafkaBrokers...) {
-		fmt.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
+		logger.InfoLogger.Printf("Topic '%s' not found. Creating the topic...\n", config.OrdersTopic)
 		err := kafkautils.CreateTopic(config.KafkaBrokers[0], config.OrdersTopic, config.OrdersNumPartitions, config.KafkaReplicationFactor)
 		if err != nil {
 			panic(err)
@@ -132,14 +132,14 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 		} else {
 			err := writer.WriteMessages(context.Background(), msgBatch...)
 			if err != nil {
-				fmt.Printf("❌ Failed to write Order events: %v\n", err)
+				logger.ErrorLogger.Printf("❌ Failed to write Order events: %v\n", err)
 				os.Exit(1)
 			}
 		}
 
-		fmt.Printf("✅ Sent a batch of %d Order events\n", len(msgBatch))
+		logger.InfoLogger.Printf("✅ Sent a batch of %d Order events\n", len(msgBatch))
 	}
 
-	fmt.Println("Number of orders created: ", numOrders)
-	fmt.Println("Number of unique users used for new orders: ", len(myUserIDs))
+	logger.DebugLogger.Println("Number of orders created: ", numOrders)
+	logger.DebugLogger.Println("Number of unique users used for new orders: ", len(myUserIDs))
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -42,13 +43,13 @@ func WaitForGroupReady(brokers []string, groupId string, maxAttempts int, backOf
 
 		// Check the group state and retry if it is not "empty" or "stable"
 		state := res.Groups[0].GroupState
-		fmt.Printf("'%s' group state received: %s\n", groupId, state)
+		logger.DebugLogger.Printf("'%s' group state received: %s\n", groupId, state)
 		if state == "Empty" || state == "Stable" {
-			fmt.Printf("Group '%s' is ready to consume messages\n", groupId)
+			logger.DebugLogger.Printf("Group '%s' is ready to consume messages\n", groupId)
 			return nil
 		}
 		delay := backOffTimeout << i
-		fmt.Printf("[Attempt %d/%d] Group '%s' is not ready, waiting for %d seconds before next retry...\n", i+1, maxAttempts, groupId, delay)
+		logger.DebugLogger.Printf("[Attempt %d/%d] Group '%s' is not ready, waiting for %d seconds before next retry...\n", i+1, maxAttempts, groupId, delay)
 		time.Sleep(time.Duration(delay) * time.Second)
 	}
 

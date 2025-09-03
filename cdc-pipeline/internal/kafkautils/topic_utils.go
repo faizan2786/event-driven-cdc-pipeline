@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -24,7 +25,7 @@ func TopicExists(topic string, brokers ...string) bool {
 		panic(fmt.Sprintf("failed to connect to Kafka cluster: %v\n", err))
 	}
 
-	fmt.Printf("Kafka cluster controller found: %v\n", clusterInfo.Controller)
+	logger.DebugLogger.Printf("Kafka cluster controller found: %v\n", clusterInfo.Controller)
 
 	topics := make(map[string]bool)
 	for _, t := range clusterInfo.Topics {
@@ -68,7 +69,7 @@ func CreateTopic(broker string, topic string, partitions int, replicationFactor 
 		return fmt.Errorf("failed to create topic: %w", err)
 	}
 
-	fmt.Printf("Topic '%s' created with %d partitions\n", topic, partitions)
+	logger.InfoLogger.Printf("Topic '%s' created with %d partitions\n", topic, partitions)
 
 	return nil
 }
@@ -79,7 +80,7 @@ func WriteWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		err = writer.WriteMessages(context.Background(), msgBatch...)
 		if err != nil {
-			fmt.Printf("Writing to '%s' topic failed on attempt %d/%d. Waiting for %d seconds...\n", topic, attempt+1, maxAttempts, backOffTimeout)
+			logger.DebugLogger.Printf("Writing to '%s' topic failed on attempt %d/%d. Waiting for %d seconds...\n", topic, attempt+1, maxAttempts, backOffTimeout)
 			time.Sleep(2 * time.Second)
 		} else {
 			writeSuccess = true
@@ -88,7 +89,7 @@ func WriteWithRetry(writer *kafka.Writer, topic string, msgBatch []kafka.Message
 	}
 	// exit if failure after max. attempt
 	if !writeSuccess {
-		fmt.Printf("❌ Failed to write Order events after maximum attempts: %v\n", err)
+		logger.ErrorLogger.Printf("❌ Failed to write Order events after maximum attempts: %v\n", err)
 		os.Exit(1)
 	}
 }

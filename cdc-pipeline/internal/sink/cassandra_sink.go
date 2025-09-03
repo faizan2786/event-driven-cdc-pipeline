@@ -3,11 +3,11 @@ package sink
 import (
 	"encoding/base64"
 	"fmt"
-	"log"
 	"math/big"
 	"time"
 
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/parser"
 	"github.com/gocql/gocql"
@@ -95,7 +95,7 @@ func (c *CassandraClient) Close() {
 // for supported debezium topics.`topic` is the Kafka topic name (e.g. "cdc.public.users")
 func (c *CassandraClient) ApplyChange(topic string, ev *model.ChangeEvent) error {
 	if ev == nil {
-		log.Println("nil change event")
+		logger.DebugLogger.Println("nil change event")
 		return nil
 	}
 
@@ -123,6 +123,8 @@ func (c *CassandraClient) ApplyChange(topic string, ev *model.ChangeEvent) error
 // addEventIfNotProcessed returns true if the event was newly added (i.e., not seen before)
 func (c *CassandraClient) addEventIfNotProcessed(eventID string, topic string, tsMs int64) (bool, error) {
 
+	logger.DebugLogger.Printf("Inserting event to processed_events table: event_id = %s\n", eventID)
+
 	// LWT insert: INSERT ... IF NOT EXISTS
 	query := "INSERT INTO processed_events (event_id, topic, ts_ms, processed_at) VALUES (?, ?, ?, ?) IF NOT EXISTS"
 
@@ -133,6 +135,8 @@ func (c *CassandraClient) addEventIfNotProcessed(eventID string, topic string, t
 		if err != nil {
 			return false, err
 		}
+
+		logger.DebugLogger.Printf("Row already existed? %v", !applied)
 		return applied, nil
 	}
 	// For mocks, just return true
@@ -145,9 +149,11 @@ func (c *CassandraClient) applyUserChange(ev *model.ChangeEvent) error {
 		return nil
 	}
 
+	logger.DebugLogger.Printf("Applying change event: Table = 'users', Op = '%s', Row = %v\n", ev.Op, row)
+
 	if ev.Op != "c" && ev.Op != "u" {
 		// nothing to do
-		log.Printf("ApplyChange: unexpected op '%s', nothing to do.\n", ev.Op)
+		logger.InfoLogger.Printf("ApplyChange: unexpected op '%s', nothing to do.\n", ev.Op)
 		return nil
 	}
 
@@ -226,9 +232,11 @@ func (c *CassandraClient) applyOrderChange(ev *model.ChangeEvent) error {
 		return nil
 	}
 
+	logger.DebugLogger.Printf("Applying change event: Table = 'orders', Op = '%s', Row = %v\n", ev.Op, row)
+
 	if ev.Op != "c" && ev.Op != "u" {
 		// nothing to do
-		log.Printf("ApplyChange: unexpected op '%s', nothing to do.\n", ev.Op)
+		logger.InfoLogger.Printf("ApplyChange: unexpected op '%s', nothing to do.\n", ev.Op)
 		return nil
 	}
 
