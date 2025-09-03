@@ -2,7 +2,7 @@
 
 A real-time Change Data Capture (CDC) pipeline built with Go, demonstrating event-driven architecture using Kafka, PostgreSQL, and Cassandra. This project simulates producing business events, consuming them to update a primary database, and using CDC to keep external systems in sync.
 
-The system uses `User` and `Order` events to demonstrate how to produce and consume business events, sink data to PostgreSQL, capture database changes via Debezium, and replicate to Cassandra as an external data sink.
+The system uses `User` and `Order` events to demonstrate how to produce and consume business events, sink data to PostgreSQL, capture database changes via Debezium, and sync the change to Cassandra as an external data sink.
 
 ## Architecture
 
@@ -11,6 +11,7 @@ The system uses `User` and `Order` events to demonstrate how to produce and cons
 - **3-Node Cassandra Cluster** as an external (sink) database cluster with replication
 - **Debezium Kafka Connect** for Change Data Capture from PostgreSQL to Kafka
 - **Go producers/consumers** with idle timeout and graceful shutdown
+- **CDC Consumer** for processing Debezium change events and syncing to Cassandra
 - **Kafka UI** for monitoring and management
 
 ## Project Structure
@@ -56,6 +57,11 @@ event-driven-cdc-pipeline/
 - **Worker Pools**: One worker per partition for parallel processing
 - **Failure Handling**: Retries with exponential backoff for failed operations
 - **Topic Management**: Automatic topic creation with proper partitioning
+- **Custom Logging**: Three-level logger (INFO, DEBUG, ERROR) for basic monitoring and debugging
+- **CDC Pipeline**: 
+  - Debezium change event parser for PostgreSQL CDC events
+  - Cassandra sink logic with idempotent operations
+  - CDC consumer for processing change events with graceful shutdown
 
 ## Quick Start
 
@@ -87,6 +93,9 @@ docker-compose restart cassandra3
 
   # Consume events with idle timeout
   go run ./cmd/consumer
+  
+  # Consume CDC events from Debezium and sync to Cassandra
+  go run ./cmd/cdcconsumer
    ```
 
 ## Database Connections
