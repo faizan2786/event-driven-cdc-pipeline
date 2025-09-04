@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -23,7 +21,7 @@ const (
 	idleTimeout             = 10 * time.Second // Consumer idle timeout duration
 )
 
-type eventHandler func(msg kafka.Message, db *sql.DB) bool
+type eventHandler func(db sink.DBClient, msg *kafka.Message) bool
 
 type consumerConfig struct {
 	topic         string
@@ -61,18 +59,18 @@ func main() {
 	wg.Wait()
 }
 
-func handleUserEvent(msg kafka.Message, db *sql.DB) bool {
+func handleUserEvent(db sink.DBClient, msg *kafka.Message) bool {
 	// de-serialise event and put it into DB...
 	var event model.UserEvent
 	json.Unmarshal(msg.Value, &event)
-	return sink.AddUserEventToDB(db, event)
+	return sink.AddUserEventToDB(db, &event)
 }
 
-func handleOrderEvent(msg kafka.Message, db *sql.DB) bool {
+func handleOrderEvent(db sink.DBClient, msg *kafka.Message) bool {
 	// de-serialise event and put it into DB...
 	var event model.OrderEvent
 	json.Unmarshal(msg.Value, &event)
-	return sink.AddOrderEventToDB(db, event)
+	return sink.AddOrderEventToDB(db, &event)
 }
 
 // consume events - blocks until new message arrives or time out reached
@@ -100,17 +98,16 @@ func consumeEvents(c *consumerConfig) {
 		panic(err)
 	}
 
-	db, err := sink.ConnectToDB()
+	db, err := sink.NewDBClient()
 	if err != nil {
-		msg := fmt.Sprintf("Failed to connect to the DB:\n%v\n", err)
-		panic(msg)
+		panic(err)
 	}
 	defer db.Close()
 
 	// create a channel per partition
-	chPerPartition := make(map[int]chan kafka.Message)
+	chPerPartition := make(map[int]chan *kafka.Message)
 	for i := range c.numPartitions {
-		chPerPartition[i] = make(chan kafka.Message, 100) // buffered channel
+		chPerPartition[i] = make(chan *kafka.Message, 100) // buffered channel
 	}
 
 	// dispatch message processing to workers (one per partition)
@@ -142,7 +139,7 @@ func consumeEvents(c *consumerConfig) {
 
 		lastMsgSeen = time.Now()
 		// dispatch the message to channel based on its partition
-		chPerPartition[msg.Partition] <- msg
+		chPerPartition[msg.Partition] <- &msg
 	}
 
 	// closing worker channels
@@ -152,7 +149,7 @@ func consumeEvents(c *consumerConfig) {
 	wg.Wait() // Wait for all workers to finish
 }
 
-func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler eventHandler, wg *sync.WaitGroup, ctx context.Context) {
+func startWorker(ch <-chan *kafka.Message, r *kafka.Reader, db sink.DBClient, dbHandler eventHandler, wg *sync.WaitGroup, ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		for msg := range ch {
@@ -163,7 +160,7 @@ func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler
 
 			// process message with a backoff retry strategy...
 			for i := 0; i < processEventMaxAttempts; i++ {
-				success = dbHandler(msg, db)
+				success = dbHandler(db, msg)
 				if success {
 					break
 				}
@@ -178,7 +175,7 @@ func startWorker(ch <-chan kafka.Message, r *kafka.Reader, db *sql.DB, dbHandler
 			}
 
 			// commit the offset
-			r.CommitMessages(ctx, msg)
+			r.CommitMessages(ctx, *msg)
 		}
 	}()
 }
