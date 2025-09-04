@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -12,8 +13,9 @@ type DateTime = time.Time
 type Date time.Time
 
 func (dt Date) MarshalJSON() ([]byte, error) {
-	t := time.Time(dt)
-	return []byte(`"` + t.Format("2006-01-02") + `"`), nil
+	t := time.Time(dt) // cast to time.Time type
+	dateStr := t.Format("2006-01-02")
+	return json.Marshal(dateStr)
 }
 
 func (dt *Date) UnmarshalJSON(data []byte) error {
@@ -27,7 +29,7 @@ func (dt *Date) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	*dt = Date(parsed)
+	*dt = Date(parsed) // cast to Date type
 	return nil
 }
 
