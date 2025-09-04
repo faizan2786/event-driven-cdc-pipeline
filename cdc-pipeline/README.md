@@ -1,8 +1,8 @@
 # cdc-pipeline Go Module
 
 
-This directory contains the application code for the Event Driven CDC Pipeline project.
-Currently, it provides commands to generate (produce) and consume `User` and `Order` events using Kafka and PostgreSQL.
+This directory contains the main application code for the project.
+Currently, it provides 3 commands/executables to generate (produce) business events and consume business (i.e. `User` and `Order` events) and change events (i.e. Debezium CDC events) to and from Kafka.
 
 ## Prerequisites
 - Docker and Docker Compose

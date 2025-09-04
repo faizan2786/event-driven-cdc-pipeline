@@ -14,15 +14,22 @@ The system uses `User` and `Order` events to demonstrate how to produce and cons
 - **CDC Consumer** for processing Debezium change events and syncing to Cassandra
 - **Kafka UI** for monitoring and management
 
+![Architecture Diagram](docs/images/high-level-architecture.png)
+
 ## Project Structure
 
 ```
 event-driven-cdc-pipeline/
 ├── cdc-pipeline/                   # Go module containing the application code
 ├── docker-compose.yml              # Infrastructure services
-├── postgres-schema.sql             # PostgreSQL schema initialization script
-├── cassandra-schema.cql            # Cassandra schema initialization script
-└── debezium-config.sh              # Debezium connector initialization
+├── docs/                           # Documentation and images
+│   └── images/                     # Architecture diagrams and visual assets
+├── examples/                       # Sample files and examples
+├── scripts/                        # Setup and configuration scripts
+├── sql/                           # Database schema files
+│   ├── postgres-schema.sql         # PostgreSQL schema initialization script
+│   └── cassandra-schema.cql        # Cassandra schema initialization script
+└── README.md                       # Project documentation
 ```
 - **cdc-pipeline/**: Main Go application with modular design
 - **docker-compose.yml**: Complete microservice infrastructure with 3-node Kafka + PostgreSQL + 3-node Cassandra + Debezium + Kafka UI

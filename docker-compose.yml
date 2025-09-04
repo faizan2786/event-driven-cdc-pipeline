@@ -125,7 +125,7 @@ services:
       - "shared_preload_libraries=pgoutput" # output plugin for logical decoding (default)
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-schema.sql:/docker-entrypoint-initdb.d/postgres-schema.sql
+      - ./sql/postgres-schema.sql:/docker-entrypoint-initdb.d/postgres-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cdc_db"]
       interval: 6s
@@ -173,7 +173,7 @@ services:
     image: debezium/connect:2.6
     container_name: debezium-connector-init
     volumes:
-      - ./debezium-config.sh:/debezium-config.sh
+      - ./scripts/debezium-config.sh:/debezium-config.sh
     depends_on:
       debezium-kafka-connect:
         condition: service_healthy
@@ -283,7 +283,7 @@ services:
     image: cassandra:5
     container_name: cassandra-init
     volumes:
-      - ./cassandra-schema.cql:/cassandra-schema.cql
+      - ./sql/cassandra-schema.cql:/cassandra-schema.cql
     depends_on:
       cassandra1:
         condition: service_healthy
