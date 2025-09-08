@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
 	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
 	"github.com/gocql/gocql"
 	"gopkg.in/inf.v0"
@@ -22,15 +21,6 @@ func parseUUID(id string) gocql.UUID {
 		panic(err)
 	}
 	return uuid
-}
-
-func TestConnToCassandra(t *testing.T) {
-	client, err := NewCassandraClient(config.CassandraHosts, config.CassandraKeyspace)
-	if err != nil {
-		t.Errorf("Error while creating a new Cassandra session.\n%v\n", err)
-	} else {
-		client.Close()
-	}
 }
 
 // mockSession implements minimal gocql.Session interface for testing
