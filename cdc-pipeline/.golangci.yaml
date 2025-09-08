@@ -1,0 +1,19 @@
+version: "2"
+
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  default: none    # disable all default linters
+  enable:
+    - govet        # extra static analysis beyond go vet
+    - staticcheck  # powerful bug finder
+    - unused       # flag unused vars/funcs
+  
+formatters:
+  enable:
+    - gofmt        # enforce formatting
+  settings:
+    gofmt:
+      simplify: true  # apply Go simplifications (e.g. if x == true -> if x)

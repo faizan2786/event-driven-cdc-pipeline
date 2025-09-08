@@ -46,6 +46,7 @@ cdc-pipeline/
 │       ├── postgres_sink_test.go
 │       ├── cassandra_sink.go       # Cassandra sink with correct CQL types
 │       └── cassandra_sink_test.go
+├── .golangci.yaml                  # config file for golangci linter
 ```
 
 ### Subdirectories

@@ -103,7 +103,7 @@ func produceOrderEvents(userIds []model.UUID, batchSize int, numBatches int) {
 	defer writer.Close()
 
 	numOrders := 0
-	var myUserIDs map[model.UUID]bool = make(map[model.UUID]bool)
+	var myUserIDs = make(map[model.UUID]bool)
 
 	for i := 0; i < numBatches; i++ {
 
