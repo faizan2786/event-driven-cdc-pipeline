@@ -72,7 +72,7 @@ go test ./internal/...
 
 ## Key Features
 
-- **3-Broker Kafka Cluster**: Configured for `localhost:9092`, `localhost:9093`, `localhost:9094` with replication factor 3
+- **3-Broker Kafka Cluster**: Configured with brokers `kafka1:9092`, `kafka2:9092`, `kafka3:9092` with replication factor of 3
 - **Intelligent Consumer**: Multi-topic consumer with idle timeout that gracefully shuts down when no messages arrive
 - **Worker Pool Architecture**: One worker per partition for parallel message processing
 - **Automatic Topic Management**: Creates topics with proper partitioning if they don't exist
@@ -154,7 +154,7 @@ type eventHandler func(msg kafka.Message, db *sql.DB) bool
 
 **Features:**
 - **Multi-topic support**: Single application handles multiple event types
-- **Per-partition workers**: One goroutine per partition per topic for parallel processing
+- **Per-partition workers**: One goroutine per partition per topic for concurrent processing
 - **Idle timeout**: Exits when no messages arrive for a configurable period
 - **Retry logic**: Exponential backoff for failed operations
 

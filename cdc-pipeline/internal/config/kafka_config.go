@@ -1,6 +1,6 @@
 package config
 
-var KafkaBrokers = []string{"localhost:9092", "localhost:9093", "localhost:9094"}
+var KafkaBrokers = []string{"kafka1:9092", "kafka2:9092", "kafka3:9092"}
 
 const KafkaReplicationFactor int = 3
 

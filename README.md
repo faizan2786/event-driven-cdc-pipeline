@@ -70,42 +70,57 @@ event-driven-cdc-pipeline/
   - Cassandra sink logic with idempotent operations
   - CDC consumer for processing change events with graceful shutdown
 
-## Quick Start
 
-**Start the services:**
-   ```bash
-   docker-compose up -d
-   ```
-Wait for all services to be up and running (it may take a few minutes).
+## Quick Start (Using VS Code + Dev Containers)
 
-**Check Cassandra cluster status:**
-```bash
-docker exec cassandra1 nodetool status
-```
-**Note:** Above command should show all 3 nodes listed with status `UN` (Up and Normal).
-If any node is missing, check its logs for errors and **restart** the failed node using command such as:
-```bash
-docker-compose restart cassandra3
-```
+This project is designed to work seamlessly with [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers). All dependencies (Go, Docker CLI, Git, etc.) are configured to be pre-installed in the dev container environment.
 
-**Build and run Go applications to produce/consume events:**
-   ```bash
-   cd cdc-pipeline
+**Note**: Ensure you have **Docker** and **VS Code** with the Remote - Containers extension installed on your host machine.
+
+**1. Open in Dev Container:**
+
+  - Open the project repository in VS Code.
+  - When prompted, click on "Reopen in Container" to launch the dev container. Alternatively, you can open the Command Palette (`Ctrl/Cmd + Shift + P`), search for "Dev Containers: Reopen in Container", and select it.
+  - A development environment will be set up by VS Code in a container.
+
+**2. Start the services:**
+
+Run the following command in your terminal to start all services:
+  ```bash
+  docker-compose up -d
+  ```
+  Wait for all services to be up and running (it may take a few minutes).
+
+**3. Check Cassandra cluster status:**
+  ```bash
+  docker exec cassandra1 nodetool status
+  ```
+  **Note:** Above command should show all 3 nodes listed with status `UN` (Up and Normal).
+  If any node is missing, check its logs for errors and **restart** the failed node using command such as:
+  ```bash
+  docker-compose restart cassandra3
+  ```
+
+**4. Run Go programs to produce/consume events:**
+
+Open VS Code terminal (if not already open) and run the following commands to execute the Go programs:
+  ```bash
+  cd cdc-pipeline
    
-   # Install dependencies
-   go mod tidy
-   
+  # Install dependencies (if needed)
+  go mod tidy
+
   # Generate and produce events
   go run ./cmd/producer
 
   # Consume events with idle timeout
   go run ./cmd/consumer
-  
+
   # Consume CDC events from Debezium and sync to Cassandra
   go run ./cmd/cdcconsumer
-   ```
+  ```
 
-## Database Connections
+## Verifying Database Connections and Schemas
 
 **Connect to PostgreSQL:**
 ```bash

@@ -1,5 +1,5 @@
 package config
 
-var CassandraHosts = []string{"localhost:9042", "localhost:9043", "localhost:9044"}
+var CassandraHosts = []string{"cassandra1:9042", "cassandra2:9042", "cassandra3:9042"}
 
 const CassandraKeyspace = "cdc_keyspace"
