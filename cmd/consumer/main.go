@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/sink"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/kafkautils"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/logger"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/sink"
 	"github.com/segmentio/kafka-go"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/logger"
 	"github.com/segmentio/kafka-go"
 )
 

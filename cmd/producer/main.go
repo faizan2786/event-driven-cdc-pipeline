@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/eventgenerator"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/kafkautils"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/eventgenerator"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/kafkautils"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/logger"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/model"
 	"github.com/segmentio/kafka-go"
 )
 

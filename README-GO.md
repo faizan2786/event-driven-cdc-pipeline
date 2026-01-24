@@ -1,7 +1,6 @@
-# cdc-pipeline Go Module
+# Go Application Architecture & Usage
 
-
-This directory contains the main application code for the project.
+This document describes the Go application code for the project.
 Currently, it provides 3 commands/executables to generate (produce) business events and consume business (i.e. `User` and `Order` events) and change events (i.e. Debezium CDC events) to and from Kafka.
 
 ## Prerequisites
@@ -11,7 +10,7 @@ Currently, it provides 3 commands/executables to generate (produce) business eve
 ## Directory Structure
 
 ```
-cdc-pipeline/
+project-root/
 ├── cmd/                            # CLI entrypoints
 │   ├── producer/                   # Produces random User and Order events to Kafka
 │   │   ├── generate_events.go      # A test program to generate events and output them in json format
@@ -47,6 +46,8 @@ cdc-pipeline/
 │       ├── cassandra_sink.go       # Cassandra sink with correct CQL types
 │       └── cassandra_sink_test.go
 ├── .golangci.yaml                  # config file for golangci linter
+├── go.mod                          # Go module definition
+└── go.sum                          # Go module checksums
 ```
 
 ### Subdirectories
@@ -66,7 +67,6 @@ cdc-pipeline/
 To run all unit tests in the `internal` directory:
 
 ```sh
-cd cdc-pipeline
 go test ./internal/...
 ```
 

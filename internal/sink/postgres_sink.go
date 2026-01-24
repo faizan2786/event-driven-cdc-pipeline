@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/logger"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/model"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 

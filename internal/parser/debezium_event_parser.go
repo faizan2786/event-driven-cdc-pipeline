@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/model"
 )
 
 // ParseDebeziumEvent parses a Debezium JSON envelope (value) into model.ChangeEvent object.

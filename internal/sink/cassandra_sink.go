@@ -6,10 +6,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/config"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/logger"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/model"
-	"github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline/internal/parser"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/config"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/logger"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/model"
+	"github.com/faizan2786/event-driven-cdc-pipeline/internal/parser"
 	"github.com/gocql/gocql"
 	"gopkg.in/inf.v0"
 )

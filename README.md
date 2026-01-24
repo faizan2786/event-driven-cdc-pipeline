@@ -20,7 +20,8 @@ The system uses `User` and `Order` events to demonstrate how to produce and cons
 
 ```
 event-driven-cdc-pipeline/
-├── cdc-pipeline/                   # Go module containing the application code
+├── cmd/                            # CLI entrypoints (producer, consumer, cdcconsumer)
+├── internal/                       # Internal application code
 ├── docker-compose.yml              # Infrastructure services
 ├── docs/                           # Documentation and images
 │   └── images/                     # Architecture diagrams and visual assets
@@ -29,9 +30,11 @@ event-driven-cdc-pipeline/
 ├── sql/                           # Database schema files
 │   ├── postgres-schema.sql         # PostgreSQL schema initialization script
 │   └── cassandra-schema.cql        # Cassandra schema initialization script
+├── go.mod                          # Go module definition
 └── README.md                       # Project documentation
 ```
-- **cdc-pipeline/**: Main Go application with modular design
+- **cmd/**: Application entrypoints (producer, consumer, cdcconsumer)
+- **internal/**: Internal application logic (config, models, etc.)
 - **docker-compose.yml**: Complete microservice infrastructure with 3-node Kafka + PostgreSQL + 3-node Cassandra + Debezium + Kafka UI
 
 ## Services & Ports
@@ -101,15 +104,11 @@ Run the following command in your terminal to start all services:
   docker-compose restart cassandra3
   ```
 
-**4. Run Go programs to produce/consume events:**
-
-Open VS Code terminal (if not already open) and run the following commands to execute the Go programs:
-  ```bash
-  cd cdc-pipeline
+**Build and run Go applications to produce/consume events:**
+   ```bash
+   # Install dependencies
+   go mod tidy
    
-  # Install dependencies (if needed)
-  go mod tidy
-
   # Generate and produce events
   go run ./cmd/producer
 
@@ -150,4 +149,4 @@ DESCRIBE TABLE orders_by_user;
 
 ---
 
-For more details, see the Go module's [README](cdc-pipeline/README.md).
+For more details, see the Go module's [README](README-GO.md).

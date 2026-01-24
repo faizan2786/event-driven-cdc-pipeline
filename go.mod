@@ -1,8 +1,6 @@
-module github.com/faizan2786/event-driven-cdc-pipeline/cdc-pipeline
+module github.com/faizan2786/event-driven-cdc-pipeline
 
 go 1.23.0
-
-toolchain go1.24.4
 
 require (
 	github.com/gocql/gocql v1.7.0
