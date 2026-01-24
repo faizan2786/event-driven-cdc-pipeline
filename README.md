@@ -26,8 +26,8 @@ event-driven-cdc-pipeline/
 ├── docs/                           # Documentation and images
 │   └── images/                     # Architecture diagrams and visual assets
 ├── examples/                       # Sample files and examples
-├── scripts/                        # Setup and configuration scripts
-├── sql/                           # Database schema files
+├── scripts/                        # Setup scripts and database schemas
+│   ├── debezium-config.sh          # Debezium configuration script
 │   ├── postgres-schema.sql         # PostgreSQL schema initialization script
 │   └── cassandra-schema.cql        # Cassandra schema initialization script
 ├── go.mod                          # Go module definition
