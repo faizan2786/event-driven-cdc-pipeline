@@ -100,12 +100,12 @@ func (c *CassandraClient) ApplyChange(topic string, ev *model.ChangeEvent) error
 	}
 
 	// deduplicate using processed_events table (INSERT IF NOT EXISTS)
-	applied, err := c.addEventIfNotProcessed(ev.EventID, topic, ev.TsMs)
+	added, err := c.addEventIfNotProcessed(ev.EventID, topic, ev.TsMs)
 	if err != nil {
-		return fmt.Errorf("addEventIfNotProcessed: %w", err)
+		return fmt.Errorf("addEventIfNotProcessed(topic=%s) %w", topic, err)
 	}
-	if !applied {
-		// already processed
+	if !added {
+		// event is already processed
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func (c *CassandraClient) ApplyChange(topic string, ev *model.ChangeEvent) error
 	}
 }
 
-// addEventIfNotProcessed returns true if the event was newly added (i.e., not seen before)
+// addEventIfNotProcessed returns true if the event was successfully inserted (i.e., not seen before)
 func (c *CassandraClient) addEventIfNotProcessed(eventID string, topic string, tsMs int64) (bool, error) {
 
 	logger.DebugLogger.Printf("Inserting event to processed_events table: event_id = %s\n", eventID)
@@ -190,7 +190,7 @@ func (c *CassandraClient) applyUserChange(ev *model.ChangeEvent) error {
 			// read the old record's name, insert updated record and delete the old record if old name is different
 
 			// SELECT
-			var selectRow = map[string]interface{}{}
+			var selectRow = map[string]any{}
 			readStmt := "SELECT name from users where id = ? LIMIT 1"
 			err := c.session.Query(readStmt, id).MapScan(selectRow)
 			if err != nil {
@@ -213,9 +213,13 @@ func (c *CassandraClient) applyUserChange(ev *model.ChangeEvent) error {
 				return fmt.Errorf("applyUserChange: error when inserting updated record for user id %v: %w", id, err)
 			}
 
+			// Note: In Cassandra, UPSERTs are default
+			// If the "name" in the new row is same as before, Cassandra will automatically see the updated user record
+			// due to having the same Primary key (id, name) combination
+			// However, if the "name" in the new row is changed then it will be a seen as a new record (i.e. a new (id, name) combination)
+			// hence, we will need to delete the record associated with the old "name"
+
 			// DELETE old record if the name is different
-			// (If the updated name is not different, then Cassandra will automatically update the existing record
-			//  due to having the same clustering key column (i.e. name) value)
 			if name != currName {
 				deleteStmt := "DELETE FROM users WHERE id = ? and name = ?"
 				return c.session.Query(deleteStmt, id, currName).Exec()
