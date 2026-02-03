@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ type consumerConfig struct {
 
 func main() {
 
+	// define a consumer group (consisting of one consumer process) per topic
 	consumerConfigs := []consumerConfig{
 		{
 			topic:         config.UsersTopic,
@@ -52,7 +54,10 @@ func main() {
 		wg.Add(1)
 		go func(c *consumerConfig) {
 			defer wg.Done()
-			consumeEvents(c)
+			err := consumeEvents(c)
+			if err != nil {
+				logger.ErrorLogger.Printf("consumeEvents(topic = %s): %v\n", c.topic, err)
+			}
 		}(&consumerConfigs[i])
 	}
 
@@ -74,14 +79,19 @@ func handleOrderEvent(db sink.DBClient, msg *kafka.Message) bool {
 }
 
 // consume events - blocks until new message arrives or time out reached
-func consumeEvents(c *consumerConfig) {
+func consumeEvents(c *consumerConfig) error {
+
+	topicExists, err := kafkautils.TopicExists(c.topic, config.KafkaBrokers...)
+	if err != nil {
+		return fmt.Errorf("TopicExists() =  %w", err)
+	}
 
 	// create the topic if it doesn't exist
-	if !kafkautils.TopicExists(c.topic, config.KafkaBrokers...) {
+	if !topicExists {
 		logger.InfoLogger.Printf("Topic '%s' not found. Creating the topic...\n", c.topic)
 		err := kafkautils.CreateTopic(config.KafkaBrokers[0], c.topic, c.numPartitions, config.KafkaReplicationFactor)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("CreateTopic() =  %w", err)
 		}
 	}
 
@@ -93,14 +103,14 @@ func consumeEvents(c *consumerConfig) {
 	})
 
 	// check consumer group state and wait for it to be ready before start reading
-	err := kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, groupMaxAttempts, initialBackOffSeconds)
+	err = kafkautils.WaitForGroupReady(config.KafkaBrokers, c.groupId, groupMaxAttempts, initialBackOffSeconds)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("WaitForGroupReady() = %w", err)
 	}
 
 	db, err := sink.NewDBClient()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("NewDBClient() = %w", err)
 	}
 	defer db.Close()
 
@@ -133,8 +143,7 @@ func consumeEvents(c *consumerConfig) {
 					break
 				}
 			}
-			logger.ErrorLogger.Printf("Error while reading events from '%s' topic: %v\n", c.topic, err)
-			break
+			return fmt.Errorf("Error while fetching messages: %v\n", err)
 		}
 
 		lastMsgSeen = time.Now()
@@ -147,6 +156,8 @@ func consumeEvents(c *consumerConfig) {
 		close(chPerPartition[i])
 	}
 	wg.Wait() // Wait for all workers to finish
+
+	return nil
 }
 
 func startWorker(ch <-chan *kafka.Message, r *kafka.Reader, db sink.DBClient, dbHandler eventHandler, wg *sync.WaitGroup, ctx context.Context) {
