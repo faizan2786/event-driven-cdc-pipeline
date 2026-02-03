@@ -143,7 +143,7 @@ func consumeEvents(c *consumerConfig) error {
 					break
 				}
 			}
-			return fmt.Errorf("Error while fetching messages: %v\n", err)
+			return fmt.Errorf("error while fetching messages: %w", err)
 		}
 
 		lastMsgSeen = time.Now()
