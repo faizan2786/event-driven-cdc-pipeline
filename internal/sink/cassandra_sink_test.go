@@ -23,31 +23,60 @@ func parseUUID(id string) gocql.UUID {
 	return uuid
 }
 
+// alias for a list of query arguments
+type queryArgs []any
+
+// a struct to keep track of executed queries and their arguments
+// (can be used for individual queries or a batch of multiple queries)
+type executedQueries struct {
+	queryStatements []string
+	queryArguments  []queryArgs
+}
+
+// Implement CassandraQuery interface
+type mockQuery struct{}
+
+func (q *mockQuery) Exec() error                       { return nil }
+func (q *mockQuery) MapScan(dest map[string]any) error { return nil }
+
+// Implement CassandraBatch interface
+type mockBatch struct {
+	executedQueries
+}
+
+func (b *mockBatch) Query(stmt string, values ...any) {
+	b.queryStatements = append(b.queryStatements, stmt)
+	b.queryArguments = append(b.queryArguments, values)
+}
+
 // mockSession implements minimal gocql.Session interface for testing
 type mockSession struct {
-	executedQueries []string
-	args            [][]interface{}
+	queries executedQueries // list of executed individual queries in the sessions
+	batches []*mockBatch    // list of executed batches in the session
 }
 
 // Implement CassandraSession interface
-func (m *mockSession) Query(stmt string, values ...interface{}) CassandraQuery {
-	m.executedQueries = append(m.executedQueries, stmt)
-	m.args = append(m.args, values)
+func (m *mockSession) Query(stmt string, values ...any) CassandraQuery {
+	m.queries.queryStatements = append(m.queries.queryStatements, stmt)
+	m.queries.queryArguments = append(m.queries.queryArguments, values)
 	return &mockQuery{}
 }
 
-type mockQuery struct{}
+func (m *mockSession) NewBatch(beatType gocql.BatchType) CassandraBatch {
+	return &mockBatch{}
+}
 
-// Implement CassandraQuery interface
-func (q *mockQuery) Exec() error                               { return nil }
-func (q *mockQuery) MapScan(dest map[string]interface{}) error { return nil }
+func (m *mockSession) ExecuteBatch(batch CassandraBatch) error {
+	m.batches = append(m.batches, batch.(*mockBatch))
+	return nil
+}
 
 func TestApplyUserChange_Insert(t *testing.T) {
 	client := &CassandraClient{session: &mockSession{}}
 
 	ev := &model.ChangeEvent{
 		Op: "c",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id":          testUserID,
 			"name":        "Alice",
 			"dob":         11172,
@@ -65,17 +94,17 @@ func TestApplyUserChange_Insert(t *testing.T) {
 	mockSess := client.session.(*mockSession)
 
 	// check the query
-	if len(mockSess.executedQueries) != 1 {
-		t.Fatalf("expected 1 executed query, got %d", len(mockSess.executedQueries))
+	if len(mockSess.queries.queryStatements) != 1 {
+		t.Fatalf("expected 1 executed query, got %d", len(mockSess.queries.queryStatements))
 	}
 	expectedQuery := "INSERT INTO users (id, name, dob, created_at, is_deleted) VALUES (?, ?, ?, ?, ?)"
-	if mockSess.executedQueries[0] != expectedQuery {
-		t.Errorf("unexpected query executed: got %q, want %q", mockSess.executedQueries[0], expectedQuery)
+	if mockSess.queries.queryStatements[0] != expectedQuery {
+		t.Errorf("unexpected query executed: got %q, want %q", mockSess.queries.queryStatements[0], expectedQuery)
 	}
 
-	// check the query args
+	// check the query queryArguments
 	createdAt, _ := time.Parse(time.RFC3339, ev.Row["created_at"].(string))
-	expectedArgs := []interface{}{
+	expectedArgs := queryArgs{
 		testUserUUID,
 		"Alice",
 		"2000-08-03",
@@ -83,8 +112,8 @@ func TestApplyUserChange_Insert(t *testing.T) {
 		false,
 	}
 	for i, arg := range expectedArgs {
-		if mockSess.args[0][i] != arg {
-			t.Errorf("unexpected arg at position %d: got %v, want %v", i, mockSess.args[0][i], arg)
+		if mockSess.queries.queryArguments[0][i] != arg {
+			t.Errorf("unexpected arg at position %d: got %v, want %v", i, mockSess.queries.queryArguments[0][i], arg)
 		}
 	}
 }
@@ -95,7 +124,7 @@ func TestApplyUserChange_Update(t *testing.T) {
 
 	ev := &model.ChangeEvent{
 		Op: "u",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id":          testUserID,
 			"name":        "Bob",
 			"dob":         11172,
@@ -110,14 +139,43 @@ func TestApplyUserChange_Update(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
+	// the "UPDATE" should execute 1 non-batch query and 2 queries in a batch
+
 	mockSess := client.session.(*mockSession)
-	if len(mockSess.executedQueries) != 3 {
-		t.Fatalf("expected 3 queries to be executed, got %d", len(mockSess.executedQueries))
+
+	// check the non-batch query...
+
+	if len(mockSess.queries.queryStatements) != 1 {
+		t.Fatalf("expected 1 non-batch query, got %d", len(mockSess.queries.queryStatements))
+	}
+	expectedQuery := "SELECT name from users where id = ? LIMIT 1"
+	if mockSess.queries.queryStatements[0] != expectedQuery {
+		t.Errorf("unexpected query executed: got %q, want %q", mockSess.queries.queryStatements[0], expectedQuery)
 	}
 
-	queries := mockSess.executedQueries
+	// test query arguements
+	expectedParams1 := queryArgs{
+		testUserUUID,
+	}
+	qArgs := mockSess.queries.queryArguments[0]
+	for i, val := range expectedParams1 {
+		if qArgs[i] != val {
+			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, qArgs[i], val)
+		}
+	}
+
+	// check the batched queries...
+
+	if len(mockSess.batches) != 1 {
+		t.Fatalf("expected 1 executed batch, got %d", len(mockSess.batches))
+	}
+	batch := mockSess.batches[0]
+	if len(batch.queryStatements) != 2 {
+		t.Fatalf("expected 2 queries in teh batch, got %d", len(batch.queryStatements))
+	}
+
+	queries := batch.queryStatements
 	var expectedQueries = []string{
-		"SELECT name from users where id = ? LIMIT 1",
 		"INSERT INTO users (id, name, dob, created_at, modified_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?)",
 		"DELETE FROM users WHERE id = ? and name = ?",
 	}
@@ -131,20 +189,8 @@ func TestApplyUserChange_Update(t *testing.T) {
 	createdAt, _ := time.Parse(time.RFC3339, ev.Row["created_at"].(string))
 	modifiedAt, _ := time.Parse(time.RFC3339, ev.Row["modified_at"].(string))
 
-	// test SELECT query args
-	expectedParams1 := []interface{}{
-		testUserUUID,
-	}
-
-	queryArgs := mockSess.args[0]
-	for i, val := range expectedParams1 {
-		if queryArgs[i] != val {
-			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, queryArgs[i], val)
-		}
-	}
-
-	// test INSERT query args
-	expectedParams2 := []interface{}{
+	// test INSERT query queryArguments
+	expectedParams2 := queryArgs{
 		testUserUUID,
 		"Bob",
 		"2000-08-03",
@@ -153,22 +199,22 @@ func TestApplyUserChange_Update(t *testing.T) {
 		false,
 	}
 
-	queryArgs = mockSess.args[1]
+	qArgs = batch.queryArguments[0]
 	for i, val := range expectedParams2 {
-		if queryArgs[i] != val {
-			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, queryArgs[i], val)
+		if qArgs[i] != val {
+			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, qArgs[i], val)
 		}
 	}
-	// test DELETE query args
-	expectedParams3 := []interface{}{
+	// test DELETE query queryArguments
+	expectedParams3 := queryArgs{
 		testUserUUID,
 		"",
 	}
 
-	queryArgs = mockSess.args[2]
+	qArgs = batch.queryArguments[1]
 	for i, val := range expectedParams3 {
-		if queryArgs[i] != val {
-			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, queryArgs[i], val)
+		if qArgs[i] != val {
+			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, qArgs[i], val)
 		}
 	}
 }
@@ -179,7 +225,7 @@ func TestApplyUserChange_Update_Delete(t *testing.T) {
 
 	ev := &model.ChangeEvent{
 		Op: "u",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id":          testUserID,
 			"name":        "Bob",
 			"dob":         11172,
@@ -195,11 +241,11 @@ func TestApplyUserChange_Update_Delete(t *testing.T) {
 	}
 
 	mockSess := client.session.(*mockSession)
-	if len(mockSess.executedQueries) != 1 {
-		t.Errorf("expected only 1 query to be executed, got %d", len(mockSess.executedQueries))
+	if len(mockSess.queries.queryStatements) != 1 {
+		t.Errorf("expected only 1 query to be executed, got %d", len(mockSess.queries.queryStatements))
 	}
 
-	query := mockSess.executedQueries[0]
+	query := mockSess.queries.queryStatements[0]
 	expectedQuery := "UPDATE users SET modified_at = ?, is_deleted = ? WHERE id = ? and name = ?"
 
 	if query != expectedQuery {
@@ -207,17 +253,17 @@ func TestApplyUserChange_Update_Delete(t *testing.T) {
 	}
 
 	modifiedAt, _ := time.Parse(time.RFC3339, ev.Row["modified_at"].(string))
-	expectedParams := []interface{}{
+	expectedParams := queryArgs{
 		modifiedAt,
 		true,
 		testUserUUID,
 		"Bob",
 	}
 
-	queryArgs := mockSess.args[0]
+	qArgs := mockSess.queries.queryArguments[0]
 	for i, val := range expectedParams {
-		if queryArgs[i] != val {
-			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, queryArgs[i], val)
+		if qArgs[i] != val {
+			t.Errorf("unexpected query argument at position %d, got %v, want %v", i, qArgs[i], val)
 		}
 	}
 
@@ -228,7 +274,7 @@ func TestApplyUserChange_InvalidOp(t *testing.T) {
 
 	ev := &model.ChangeEvent{
 		Op: "d",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id": "user-3",
 		},
 	}
@@ -244,7 +290,7 @@ func TestApplyOrderChange_Insert(t *testing.T) {
 
 	ev := &model.ChangeEvent{
 		Op: "c",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id":           testOrderID,
 			"user_id":      testUserID,
 			"status":       "PLACED",
@@ -261,20 +307,25 @@ func TestApplyOrderChange_Insert(t *testing.T) {
 	}
 
 	mockSess := client.session.(*mockSession)
-	if len(mockSess.executedQueries) != 2 {
-		t.Fatalf("expected 2 executed queries, got %d", len(mockSess.executedQueries))
+	if len(mockSess.batches) != 1 {
+		t.Fatalf("expected 1 executed batch, got %d", len(mockSess.batches))
 	}
+	batch := mockSess.batches[0]
+	if len(batch.queryStatements) != 2 {
+		t.Fatalf("expected 2 queries in batch, got %d", len(batch.queryStatements))
+	}
+
 	expectedQuery1 := "INSERT INTO orders (order_id, user_id, status, quantity, total_amount, placed_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	expectedQuery2 := "INSERT INTO orders_by_user (user_id, order_id, status, quantity, total_amount, placed_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	if mockSess.executedQueries[0] != expectedQuery1 {
-		t.Errorf("unexpected query 1: got %q, want %q", mockSess.executedQueries[0], expectedQuery1)
+	if batch.queryStatements[0] != expectedQuery1 {
+		t.Errorf("unexpected query 1: got %q, want %q", batch.queryStatements[0], expectedQuery1)
 	}
-	if mockSess.executedQueries[1] != expectedQuery2 {
-		t.Errorf("unexpected query 2: got %q, want %q", mockSess.executedQueries[1], expectedQuery2)
+	if batch.queryStatements[1] != expectedQuery2 {
+		t.Errorf("unexpected query 2: got %q, want %q", batch.queryStatements[1], expectedQuery2)
 	}
-	// check args for first query
+	// check queryArguments for first query
 	placedAt, _ := time.Parse(time.RFC3339, ev.Row["placed_at"].(string))
-	expectedArgs1 := []interface{}{
+	expectedArgs1 := queryArgs{
 		testOrderUUID,
 		testUserUUID,
 		"PLACED",
@@ -284,16 +335,16 @@ func TestApplyOrderChange_Insert(t *testing.T) {
 		false,
 	}
 	for i, arg := range expectedArgs1 {
-		if mockSess.args[0][i] != arg {
+		if batch.queryArguments[0][i] != arg {
 			// use comp method for quantity - a inf.Dec type
-			if i == 4 && arg.(*inf.Dec).Cmp(mockSess.args[0][i].(*inf.Dec)) == 0 {
+			if i == 4 && arg.(*inf.Dec).Cmp(batch.queryArguments[0][i].(*inf.Dec)) == 0 {
 				continue
 			}
-			t.Errorf("unexpected arg for query 1 at position %d: got %v, want %v", i, mockSess.args[0][i], arg)
+			t.Errorf("unexpected arg for query 1 at position %d: got %v, want %v", i, batch.queryArguments[0][i], arg)
 		}
 	}
-	// check args for second query
-	expectedArgs2 := []interface{}{
+	// check queryArguments for second query
+	expectedArgs2 := queryArgs{
 		testUserUUID,
 		testOrderUUID,
 		"PLACED",
@@ -303,12 +354,12 @@ func TestApplyOrderChange_Insert(t *testing.T) {
 		false,
 	}
 	for i, arg := range expectedArgs2 {
-		if mockSess.args[1][i] != arg {
+		if batch.queryArguments[1][i] != arg {
 			// use comp method for quantity - a inf.Dec type
-			if i == 4 && arg.(*inf.Dec).Cmp(mockSess.args[1][i].(*inf.Dec)) == 0 {
+			if i == 4 && arg.(*inf.Dec).Cmp(batch.queryArguments[1][i].(*inf.Dec)) == 0 {
 				continue
 			}
-			t.Errorf("unexpected arg for query 2 at position %d: got %v, want %v", i, mockSess.args[1][i], arg)
+			t.Errorf("unexpected arg for query 2 at position %d: got %v, want %v", i, batch.queryArguments[1][i], arg)
 		}
 	}
 }
@@ -318,7 +369,7 @@ func TestApplyOrderChange_Update(t *testing.T) {
 
 	ev := &model.ChangeEvent{
 		Op: "u",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id":           testOrderID,
 			"user_id":      testUserID,
 			"status":       "CANCELLED",
@@ -336,20 +387,25 @@ func TestApplyOrderChange_Update(t *testing.T) {
 	}
 
 	mockSess := client.session.(*mockSession)
-	if len(mockSess.executedQueries) != 2 {
-		t.Fatalf("expected 2 executed queries, got %d", len(mockSess.executedQueries))
+	if len(mockSess.batches) != 1 {
+		t.Fatalf("expected 1 executed batch, got %d", len(mockSess.batches))
+	}
+	batch := mockSess.batches[0]
+
+	if len(batch.queryStatements) != 2 {
+		t.Fatalf("expected 2 queries in batch, got %d", len(batch.queryStatements))
 	}
 	expectedQuery1 := "UPDATE orders SET status = ?, modified_at = ?, is_deleted = ? WHERE order_id = ? AND user_id = ?"
 	expectedQuery2 := "UPDATE orders_by_user SET status = ?, modified_at = ?, is_deleted = ? WHERE user_id = ? AND order_id = ?"
-	if mockSess.executedQueries[0] != expectedQuery1 {
-		t.Errorf("unexpected query 1: got %q, want %q", mockSess.executedQueries[0], expectedQuery1)
+	if batch.queryStatements[0] != expectedQuery1 {
+		t.Errorf("unexpected query 1: got %q, want %q", batch.queryStatements[0], expectedQuery1)
 	}
-	if mockSess.executedQueries[1] != expectedQuery2 {
-		t.Errorf("unexpected query 2: got %q, want %q", mockSess.executedQueries[1], expectedQuery2)
+	if batch.queryStatements[1] != expectedQuery2 {
+		t.Errorf("unexpected query 2: got %q, want %q", batch.queryStatements[1], expectedQuery2)
 	}
-	// check args for first query
+	// check queryArguments for first query
 	modifiedAt, _ := time.Parse(time.RFC3339, ev.Row["modified_at"].(string))
-	expectedArgs1 := []interface{}{
+	expectedArgs1 := queryArgs{
 		"CANCELLED",
 		modifiedAt,
 		true,
@@ -357,12 +413,12 @@ func TestApplyOrderChange_Update(t *testing.T) {
 		testUserUUID,
 	}
 	for i, arg := range expectedArgs1 {
-		if mockSess.args[0][i] != arg {
-			t.Errorf("unexpected arg for query 1 at position %d: got %v, want %v", i, mockSess.args[0][i], arg)
+		if batch.queryArguments[0][i] != arg {
+			t.Errorf("unexpected arg for query 1 at position %d: got %v, want %v", i, batch.queryArguments[0][i], arg)
 		}
 	}
-	// check args for second query
-	expectedArgs2 := []interface{}{
+	// check queryArguments for second query
+	expectedArgs2 := queryArgs{
 		"CANCELLED",
 		modifiedAt,
 		true,
@@ -370,8 +426,8 @@ func TestApplyOrderChange_Update(t *testing.T) {
 		testOrderUUID,
 	}
 	for i, arg := range expectedArgs2 {
-		if mockSess.args[1][i] != arg {
-			t.Errorf("unexpected arg for query 2 at position %d: got %v, want %v", i, mockSess.args[1][i], arg)
+		if batch.queryArguments[1][i] != arg {
+			t.Errorf("unexpected arg for query 2 at position %d: got %v, want %v", i, batch.queryArguments[1][i], arg)
 		}
 	}
 }
@@ -381,7 +437,7 @@ func TestApplyOrderChange_InvalidOp(t *testing.T) {
 
 	ev := &model.ChangeEvent{
 		Op: "d",
-		Row: map[string]interface{}{
+		Row: map[string]any{
 			"id": "order-3",
 		},
 	}

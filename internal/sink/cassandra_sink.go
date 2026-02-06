@@ -2,6 +2,7 @@ package sink
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -16,17 +17,18 @@ import (
 
 // define a Session and Query interface (for testability)
 type CassandraSession interface {
-	Query(stmt string, values ...interface{}) CassandraQuery
+	Query(stmt string, values ...any) CassandraQuery
+	NewBatch(beatType gocql.BatchType) CassandraBatch
+	ExecuteBatch(batch CassandraBatch) error
 }
 
 type CassandraQuery interface {
 	Exec() error
-	MapScan(map[string]interface{}) error
+	MapScan(map[string]any) error
 }
 
-// CassandraClient wraps a CassandraSession (interface)
-type CassandraClient struct {
-	session CassandraSession
+type CassandraBatch interface {
+	Query(stmt string, args ...any)
 }
 
 // Adapter for real gocql.Session
@@ -34,8 +36,16 @@ type realSession struct {
 	sess *gocql.Session
 }
 
-func (r *realSession) Query(stmt string, values ...interface{}) CassandraQuery {
+func (r *realSession) Query(stmt string, values ...any) CassandraQuery {
 	return &realQuery{q: r.sess.Query(stmt, values...)}
+}
+
+func (r *realSession) NewBatch(batchType gocql.BatchType) CassandraBatch {
+	return &realBatch{b: r.sess.NewBatch(batchType)}
+}
+
+func (r *realSession) ExecuteBatch(batch CassandraBatch) error {
+	return r.sess.ExecuteBatch(batch.(*realBatch).b)
 }
 
 func (r *realSession) Close() {
@@ -51,7 +61,7 @@ func (rq *realQuery) Exec() error {
 	return rq.q.Exec()
 }
 
-func (rq *realQuery) MapScan(dest map[string]interface{}) error {
+func (rq *realQuery) MapScan(dest map[string]any) error {
 	return rq.q.MapScan(dest)
 }
 
@@ -61,8 +71,22 @@ func (rq *realQuery) Consistency(c gocql.Consistency) *realQuery {
 	return rq
 }
 
-func (rq *realQuery) MapScanCAS(dest map[string]interface{}) (bool, error) {
+func (rq *realQuery) MapScanCAS(dest map[string]any) (bool, error) {
 	return rq.q.MapScanCAS(dest)
+}
+
+// Adapter for real gocql.Batch
+type realBatch struct {
+	b *gocql.Batch
+}
+
+func (rb *realBatch) Query(stmt string, args ...any) {
+	rb.b.Query(stmt, args...)
+}
+
+// CassandraClient wraps a CassandraSession (interface)
+type CassandraClient struct {
+	session CassandraSession
 }
 
 // NewCassandraClient creates a new session
@@ -99,29 +123,51 @@ func (c *CassandraClient) ApplyChange(topic string, ev *model.ChangeEvent) error
 		return nil
 	}
 
-	// deduplicate using processed_events table (INSERT IF NOT EXISTS)
-	added, err := c.addEventIfNotProcessed(ev.EventID, topic, ev.TsMs)
+	processed, err := c.isEventProcessed(ev.EventID)
 	if err != nil {
-		return fmt.Errorf("addEventIfNotProcessed(topic=%s) %w", topic, err)
+		return fmt.Errorf("isEventProcessed(topic=%s) %w", topic, err)
 	}
-	if !added {
-		// event is already processed
+	if processed {
 		return nil
 	}
 
 	// route by topic suffix (table name)
 	switch topic {
 	case config.DebeziumUsersTopic:
-		return c.applyUserChange(ev)
+		err = c.applyUserChange(ev)
 	case config.DebeziumOrdersTopic:
-		return c.applyOrderChange(ev)
+		err = c.applyOrderChange(ev)
 	default:
 		return fmt.Errorf("unknown Debezium topic: %s", topic)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	// mark as processed only after successful apply
+	err = c.addProcessedEvents(ev.EventID, topic, ev.TsMs)
+	if err != nil {
+		return fmt.Errorf("addProcessedEvents(topic=%s, eventId=%s): %w", topic, ev.EventID, err)
+	}
+
+	return nil
 }
 
-// addEventIfNotProcessed returns true if the event was successfully inserted (i.e., not seen before)
-func (c *CassandraClient) addEventIfNotProcessed(eventID string, topic string, tsMs int64) (bool, error) {
+func (c *CassandraClient) isEventProcessed(eventID string) (bool, error) {
+	query := "SELECT event_id FROM processed_events WHERE event_id = ? LIMIT 1"
+	dest := map[string]any{}
+	if err := c.session.Query(query, eventID).MapScan(dest); err != nil {
+		if errors.Is(err, gocql.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// adds the processed event id to the `processed_events` table for deduplication
+func (c *CassandraClient) addProcessedEvents(eventID string, topic string, tsMs int64) error {
 
 	logger.DebugLogger.Printf("Inserting event to processed_events table: event_id = %s\n", eventID)
 
@@ -131,16 +177,12 @@ func (c *CassandraClient) addEventIfNotProcessed(eventID string, topic string, t
 	// Type assertion to access Consistency and MapScanCAS for realSession
 	if rs, ok := c.session.(*realSession); ok {
 		q := rs.sess.Query(query, eventID, topic, tsMs, time.Now()).Consistency(gocql.Quorum)
-		applied, err := q.MapScanCAS(make(map[string]interface{})) // applied = true if the row insertion was successful
-		if err != nil {
-			return false, err
-		}
-
-		logger.DebugLogger.Printf("Row already existed? %v", !applied)
-		return applied, nil
+		_, err := q.MapScanCAS(make(map[string]any)) // returns true if the row insertion was successful
+		return err
 	}
-	// For mocks, just return true
-	return true, nil
+
+	// For non-real sessions (e.g., tests), fall back to Exec so the call is still observable.
+	return c.session.Query(query, eventID, topic, tsMs, time.Now()).Exec()
 }
 
 func (c *CassandraClient) applyUserChange(ev *model.ChangeEvent) error {
@@ -185,7 +227,10 @@ func (c *CassandraClient) applyUserChange(ev *model.ChangeEvent) error {
 		// if it's a deleting update, just set the deleted_ind (without updating the name)
 		if isDeleted {
 			stmt := "UPDATE users SET modified_at = ?, is_deleted = ? WHERE id = ? and name = ?"
-			return c.session.Query(stmt, modifiedAt, true, id, name).Exec()
+			err := c.session.Query(stmt, modifiedAt, true, id, name).Exec()
+			if err != nil {
+				return fmt.Errorf("applyUserChange: error when inserting updated record for user id %v: %w", id, err)
+			}
 		} else {
 			// read the old record's name, insert updated record and delete the old record if old name is different
 
@@ -206,23 +251,28 @@ func (c *CassandraClient) applyUserChange(ev *model.ChangeEvent) error {
 				currName = res.(string)
 			}
 
-			// INSERT
-			insertStmt := "INSERT INTO users (id, name, dob, created_at, modified_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?)"
-			err = c.session.Query(insertStmt, id, name, dob, createdAt, modifiedAt, false).Exec()
-			if err != nil {
-				return fmt.Errorf("applyUserChange: error when inserting updated record for user id %v: %w", id, err)
-			}
-
 			// Note: In Cassandra, UPSERTs are default
 			// If the "name" in the new row is same as before, Cassandra will automatically see the updated user record
 			// due to having the same Primary key (id, name) combination
 			// However, if the "name" in the new row is changed then it will be a seen as a new record (i.e. a new (id, name) combination)
-			// hence, we will need to delete the record associated with the old "name"
+			// hence, we will need to delete the record associated with the old "name" along with an insert
+
+			// since we are updating only one partition, unlogged batch is ok
+			batch := c.session.NewBatch(gocql.UnloggedBatch)
+
+			// INSERT
+			insertStmt := "INSERT INTO users (id, name, dob, created_at, modified_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?)"
+			batch.Query(insertStmt, id, name, dob, createdAt, modifiedAt, false)
 
 			// DELETE old record if the name is different
 			if name != currName {
 				deleteStmt := "DELETE FROM users WHERE id = ? and name = ?"
-				return c.session.Query(deleteStmt, id, currName).Exec()
+				batch.Query(deleteStmt, id, currName)
+			}
+
+			err = c.session.ExecuteBatch(batch)
+			if err != nil {
+				return fmt.Errorf("applyUserChange: error when inserting updated record for user id %v: %w", id, err)
 			}
 		}
 	}
@@ -258,29 +308,31 @@ func (c *CassandraClient) applyOrderChange(ev *model.ChangeEvent) error {
 	quantity := parser.ParseDebeziumNumber[int](row["quantity"])
 	total := debeziumDecimalToInfDec(row["total_amount"].(string), 2)
 
+	// since we are executing queries in separate partitions, we must use Logged batch
+	batch := c.session.NewBatch(gocql.LoggedBatch)
+
 	switch ev.Op {
 	case "c":
 		// the timestamps are RFC3339 formatted string so just pass as is to cassandra
 		placedAt, _ := time.Parse(time.RFC3339, row["placed_at"].(string))
 		// insert into orders and orders_by_user
 		q1 := `INSERT INTO orders (order_id, user_id, status, quantity, total_amount, placed_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)`
-		if err := c.session.Query(q1, orderID, userID, status, quantity, total, placedAt, false).Exec(); err != nil {
-			return err
-		}
+		batch.Query(q1, orderID, userID, status, quantity, total, placedAt, false)
+
 		q2 := `INSERT INTO orders_by_user (user_id, order_id, status, quantity, total_amount, placed_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)`
-		return c.session.Query(q2, userID, orderID, status, quantity, total, placedAt, false).Exec()
+		batch.Query(q2, userID, orderID, status, quantity, total, placedAt, false)
+
 	case "u":
 		modifiedAt, _ := time.Parse(time.RFC3339, row["modified_at"].(string))
 		isDeleted := row["is_deleted"].(bool)
 		q1 := `UPDATE orders SET status = ?, modified_at = ?, is_deleted = ? WHERE order_id = ? AND user_id = ?`
-		if err := c.session.Query(q1, status, modifiedAt, isDeleted, orderID, userID).Exec(); err != nil {
-			return err
-		}
+		batch.Query(q1, status, modifiedAt, isDeleted, orderID, userID)
+
 		q2 := `UPDATE orders_by_user SET status = ?, modified_at = ?, is_deleted = ? WHERE user_id = ? AND order_id = ?`
-		return c.session.Query(q2, status, modifiedAt, isDeleted, userID, orderID).Exec()
+		batch.Query(q2, status, modifiedAt, isDeleted, userID, orderID)
 	}
 
-	return nil
+	return c.session.ExecuteBatch(batch)
 }
 
 func parseDebeziumDate(days int32) time.Time {
@@ -289,7 +341,7 @@ func parseDebeziumDate(days int32) time.Time {
 	return epoch.AddDate(0, 0, int(days))
 }
 
-// helper function to convert an interface{} value to a valid CQL UUID
+// helper function to convert an any value to a valid CQL UUID
 func convertJsonValueToCqlUUID(idVal any) (gocql.UUID, error) {
 	idStr, ok := idVal.(string)
 	if !ok {
