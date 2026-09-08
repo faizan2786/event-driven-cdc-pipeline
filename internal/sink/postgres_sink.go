@@ -10,6 +10,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+//go:generate mockgen -source=postgres_sink.go -package=mocks -destination=mocks/mock_dbclient.go
 type DBClient interface {
 	Exec(query string, args ...any) error
 	Close() error

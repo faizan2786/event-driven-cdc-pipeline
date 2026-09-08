@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/gocql/gocql v1.7.0
+	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/segmentio/kafka-go v0.4.48
